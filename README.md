@@ -1,7 +1,7 @@
 # "Outliers and Robust Inference in Archival Accounting Research"
 by Joachim Gassen and David Veenman
 
-This repository accompanies our paper on outliers (https://papers.ssrn.com/sol3/papers.cfm?abstract_id=3754202) and provides ado program files that can be installed and used in Stata.  
+This repository accompanies our paper on outliers (https://ssrn.com/abstract=3880942) and provides ado program files that can be installed and used in Stata.  
 
 ## Overview
 - `robcluster2`: this program can be used to obtain twoway cluster-robust standard errors for a robust regression estimator. It is based on the `robreg` package, which allows for the computation of cluster-robust standard errors in one dimension ([Jann 2021](https://ideas.repec.org/c/boc/bocode/s458931.html)), and the formula for twoway cluster-robust standard errors from [Thompson (2011)](https://doi.org/10.1016/j.jfineco.2010.08.016) and [Cameron, Gelbach, and Miller (2011)](https://doi.org/10.1198/jbes.2010.07136). The program is similar in spirit to the `cluster2` program created by [Mitch Petersen](https://www.kellogg.northwestern.edu/faculty/petersen/htm/papers/se/se_programming.htm). By default, the robust estimator in `robcluster2` is the MM-estimator defined by `robreg mm`, but the program requires an explicit input for the desired estimation efficiency when regression errors are normally distributed. Other options are an M-estimator (with Huber or biweight objective function), an S-estimator, or median regression. Significance levels of reported *t*-values are based on the degrees of freedom defined by the cluster dimension with the lowest number of unique clusters (G-1).
