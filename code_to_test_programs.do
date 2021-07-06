@@ -62,8 +62,8 @@ gen x6=rnormal()
 robcluster2 y x x2 x3 x4 x5 x6, eff(95) cluster(firm year)
 robcluster2 y x x2 x3 x4 x5 x6, eff(70) cluster(firm year) m
 robcluster2 y x x2 x3 x4 x5 x6, eff(95) cluster(firm year) m biweight
-robcluster2 y x x2 x3 x4 x5 x6, eff(70) cluster(firm year) s
-robcluster2 y x x2 x3 x4 x5 x6, eff(95) cluster(firm year) median
+robcluster2 y x x2 x3 x4 x5 x6, cluster(firm year) s
+robcluster2 y x x2 x3 x4 x5 x6, cluster(firm year) median
 
 roboot y x x2 x3 x4 x5 x6, eff(95) cluster(firm year) nboot(400) 
 roboot y x x2 x3 x4 x5 x6, eff(70) cluster(firm) nboot(400) m

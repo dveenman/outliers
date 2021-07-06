@@ -2,7 +2,7 @@
 
 by Joachim Gassen and David Veenman
 
-This repository accompanies our paper on outliers (https://papers.ssrn.com/sol3/papers.cfm?abstract_id=3754202) and provides the following:
+This repository accompanies our paper on outliers (https://ssrn.com/abstract=3880942) and provides the following:
 
 - ado program files that can be installed and used in Stata, and  
 - the code that creates the visuals of our [outlier blog post](https://joachim-gassen.github.io/2021/07/outliers/).
