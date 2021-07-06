@@ -1,15 +1,24 @@
 # "Outliers and Robust Inference in Archival Accounting Research"
+
 by Joachim Gassen and David Veenman
 
-This repository accompanies our paper on outliers (https://papers.ssrn.com/sol3/papers.cfm?abstract_id=3754202) and provides ado program files that can be installed and used in Stata.  
+This repository accompanies our paper on outliers (https://papers.ssrn.com/sol3/papers.cfm?abstract_id=3754202) and provides the following:
+
+- ado program files that can be installed and used in Stata, and  
+- the code that creates the visuals of our [outlier blog post](https://joachim-gassen.github.io/2021/07/outliers/).
+
 
 ## Overview
+
 - `robcluster2`: this program can be used to obtain twoway cluster-robust standard errors for a robust regression estimator. It is based on the `robreg` package, which allows for the computation of cluster-robust standard errors in one dimension ([Jann 2021](https://ideas.repec.org/c/boc/bocode/s458931.html)), and the formula for twoway cluster-robust standard errors from [Thompson (2011)](https://doi.org/10.1016/j.jfineco.2010.08.016) and [Cameron, Gelbach, and Miller (2011)](https://doi.org/10.1198/jbes.2010.07136). The program is similar in spirit to the `cluster2` program created by [Mitch Petersen](https://www.kellogg.northwestern.edu/faculty/petersen/htm/papers/se/se_programming.htm). By default, the robust estimator in `robcluster2` is the MM-estimator defined by `robreg mm`, but the program requires an explicit input for the desired estimation efficiency when regression errors are normally distributed. Other options are an M-estimator (with Huber or biweight objective function), an S-estimator, or median regression. Significance levels of reported *t*-values are based on the degrees of freedom defined by the cluster dimension with the lowest number of unique clusters (G-1).
 - `roboot`: this program can be used to obtain bootstrapped standard errors for a robust regression estimator. It is similarly based on the `robreg` package. By default, the robust estimator in `roboot` is the MM-estimator defined by `robreg mm`, but the program requires an explicit input for the desired estimation efficiency when regression errors are normally distributed. Other options are an M-estimator (with Huber or biweight objective function), an S-estimator, or median regression. The program produces robust regression estimates with bootstrapped standard errors without cluster-adjustment, one-way cluster-robust standard errors, or twoway cluster-robust standard errors. The bootstrapped standard errors are derived from the standard deviations of B bootstrap samples drawn from the sample with replacement. One-way cluster-robust bootstrapped standard errors are obtained similarly by drawing entire clusters of data from the sample with replacement. Twoway cluster-robust standard errors are obtained using the formula from [Thompson (2011)](https://doi.org/10.1016/j.jfineco.2010.08.016) and [Cameron, Gelbach, and Miller (2011)](https://doi.org/10.1198/jbes.2010.07136).
 - `robfmb`: this program can be used to run Fama-Macbeth type robust regressions. Although the typical application is to derive estimates from the time-series of coefficient estimates derived from cross-sectional regressions, the program can be used to perform any type of sample splitting (e.g., [Conley, Gonçalves, and Hansen 2018](https://doi.org/10.1111/1475-679X.12219)). When the estimations are performed for each unit of time (e.g., by year), the program additionally allows for the calculation of a Newey-West correction of the standard errors.
 - `robalance`: this program produces a table of output in which input variables are compared between the full sample and the reweighted sample of observations, based on the weights stored from a previous robust regression estimator. For continuous variables, the program compares the mean, 5th percentile value, first quartile (p25), median (p50), third quartile (p75), and 95th percentile value of the variable distribution between the full sample and the reweighted sample. Besides the difference in these distributional characteristics, the program provides z-statistics based on bootstrapped standard errors derived for the relevant characteristic. Bootstrapped standard errors can additionally be adjusted for clustering in one or two dimensions. For indicator variables, the program computes the difference in the unweighted versus the weighted mean of the variables. 
+- `blog`: Folder that contains the code for preparing the blog post visuals. See its README for additional information.
+
 
 ## Installation and dependencies
+
 The programs can be installed by simply saving the \*.ado files into your local Stata directory that contains additional ado programs. To identify this folder, type and execute "sysdir" in your Stata command window and go to the folder listed at "PLUS:". Make sure you place the program in the folder with the correct starting letter of the program (i.e., the folder names "r" for all programs) and the file extension is correctly specified as \*.ado.
 
 The `robcluster2` and `roboot` programs require the latest versions of `moremata` and `robreg` to be installed in Stata:
@@ -19,6 +28,7 @@ ssc inst robreg, replace
 ```
 
 ## Program details: robcluster2
+
 Syntax:
 **robcluster2** *depvar* *indepvars*, *cluster(varlist)* [*options*]
 
