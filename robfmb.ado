@@ -1,8 +1,21 @@
-*! version 1.0 01july2021 David Veenman
+*! version 1.1 20211011 David Veenman
+
+/* 
+20211011: 1.1	Added tolerance option 
+				Added option nohaus to s and mm estimator for faster execution
+20210701: 1.0	First version
+*/
 
 program define robfmb, eclass sortpreserve 
-	syntax varlist [in] [if], splitvar(varname) [eff(real 0)] [lag(int 0)] [m|s|median] [biweight] 
+	syntax varlist [in] [if], splitvar(varname) [eff(real 0)] [lag(int 0)] [m|s|median] [biweight] [tol(real 0)]
 	
+	if (`tol'==0){
+	    local tolerance=1e-6
+	}
+	else {
+	    local tolerance=`tol'
+	}
+		
 	if ("`median'"=="" & "`s'"=="" & `eff'==0) {
 	    if ("`m'"!=""){
 			di as text "ERROR: You must specify the desired estimation efficiency in option eff() with M estimation"
@@ -26,33 +39,25 @@ program define robfmb, eclass sortpreserve
 	}
 	if "`s'"!="" {
 	    local est="s"
-	    local options0=" "	    
-	    local options="tolerance(1e-3) nose"
+	    local options="nohaus tol(`tolerance')"
 	}
 	if ("`m'"!="" & "`biweight'"!="") {
 		local est="m"
-	    local options0="eff(`eff')"	    
-	    local options="tolerance(1e-3) eff(`eff') nose biw"
+	    local options="eff(`eff') biw tol(`tolerance')"
 	}
 	if ("`m'"!="" & "`biweight'"=="") {
 		local est="m"
-	    local options0="eff(`eff')"	    
-	    local options="tolerance(1e-3) eff(`eff') nose"
+	    local options="eff(`eff') tol(`tolerance')"
 	}
 	if ("`m'"=="" & "`s'"=="") {
 	    local est="mm"
-	    local options0="eff(`eff')"	    
-	    local options="tolerance(1e-3) eff(`eff') sopts(tolerance(1e-3))"	    
+	    local options="eff(`eff') nohaus tol(`tolerance')"	    
 	}
 	if "`median'"!="" {
-	    local est0="qreg"
-	    local est=" "
-	    local options0=" "	    
-	    local options=" "	    
+	    local est="q"
+	    local options="tol(`tolerance')"	    
 	}
-	else{
-	    local est0="robreg"		
-	}
+    local est0="robreg"
 	
 	tokenize `varlist'
 	marksample touse
