@@ -1,7 +1,22 @@
-*! version 1.0 01july2021 David Veenman
+*! version 1.1 20210919 David Veenman
+
+/* 
+20211011: 1.1  Added tolerance option
+			   Improved small-sample correction for 2way variance matrix to be consistent with reghdfe
+			   Added option nohaus to s and mm estimator for faster execution
+			   Small fix in scalar drop at bottom; previous "drop _all" caused all scalars to be dropped outside the program too
+20210701: 1.0  First version
+*/
 
 program define robcluster2, eclass sortpreserve
-	syntax varlist [in] [if], cluster(varlist) [eff(real 0)] [m|s|median] [biweight]
+	syntax varlist [in] [if], cluster(varlist) [eff(real 0)] [m|s|median] [biweight] [tol(real 0)]
+	
+	if (`tol'==0){
+	    local tolerance=1e-6
+	}
+	else {
+	    local tolerance=`tol'
+	}
 	
 	if ("`median'"=="" & "`s'"=="" & `eff'==0) {
 	    if ("`m'"!=""){
@@ -26,23 +41,23 @@ program define robcluster2, eclass sortpreserve
 	}
 	if "`s'"!="" {
 	    local est="s"
-	    local options=""
+	    local options="nohaus tol(`tolerance')"
 	}
 	if ("`m'"!="" & "`biweight'"!="") {
 		local est="m"
-	    local options="eff(`eff') biw"
+	    local options="eff(`eff') biw tol(`tolerance')"
 	}
 	if ("`m'"!="" & "`biweight'"=="") {
 		local est="m"
-	    local options="eff(`eff')"
+	    local options="eff(`eff') tol(`tolerance')"
 	}
 	if ("`m'"=="" & "`s'"=="") {
 	    local est="mm"
-	    local options="eff(`eff')"	    
+	    local options="eff(`eff') nohaus tol(`tolerance')"	    
 	}
 	if "`median'"!="" {
 	    local est="q"
-	    local options=" "	    
+	    local options="tol(`tolerance')"	    
 	}
     local est0="robreg"
 	
@@ -136,6 +151,7 @@ program define robcluster2, eclass sortpreserve
 
 	/* (3) Intersection */
 	qui `est0' `est' `varlist' if `touse', `options' cluster(`intersection')
+	local nftcluster=e(N_clust)
 	local j=1
 	foreach var of local indepv{
 		matrix v_`j'=(_se[`var'])^2
@@ -153,8 +169,29 @@ program define robcluster2, eclass sortpreserve
 	matrix Vft=(Vft, consV)
 	matrix Vft=diag(Vft)
 
+	/* Fix small sample corrections of cluster-robust variance estimators */
+	if `nfcluster'<`ntcluster'{
+		local Gmin=`nfcluster'
+	}
+	else{
+		local Gmin=`ntcluster'
+	}
+	local N=`nfcluster'*`ntcluster'
+	scalar factor1=(`nfcluster'/(`nfcluster'-1))*((`N'-1)/(`N'-2))
+	scalar factor2=(`ntcluster'/(`ntcluster'-1))*((`N'-1)/(`N'-2))
+	scalar factor3=(`nftcluster'/(`nftcluster'-1))*((`N'-1)/(`N'-2))
+	if `nfcluster'<`ntcluster'{
+		scalar factormin=factor1
+	}
+	else{
+		scalar factormin=factor2
+	}
+	matrix Vf=Vf/factor1
+	matrix Vt=Vt/factor2
+	matrix Vft=Vft/factor3
+	
 	/* Create 2-dimension cluster-adjusted variance matrix */
-	matrix Vc=Vf+Vt-Vft
+	matrix Vc=factormin*(Vf+Vt-Vft)
 		
 	/* Post resuls in e() */
 	ereturn clear
@@ -208,6 +245,6 @@ program define robcluster2, eclass sortpreserve
 	}
 	di " " 
 
-	scalar drop _all
+	scalar drop e_N e_df_r1 e_r2_p e_df_r2 e_df_r factor1 factor2 factor3 factormin
 	matrix drop _all
 end
