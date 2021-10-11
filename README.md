@@ -30,6 +30,7 @@ This program can be used to estimate a robust regression with cluster-robust sta
   - *s*: estimates an S-estimator (`robreg s`) instead of the default MM-estimator `robreg mm` (cannot be combined with *m* or *median* as options)  
   - *median*: estimates median regression (`robreg q`) instead of the default MM-estimator `robreg mm` (cannot be combined with *m* or *s* as options)  
   - *biweight*: when combined with option *m*, this option replaces the default Huber objective function in the M-estimator with the biweight objective function.
+  - *tol(value)*: specifies the tolerance for iterative algorithms.
 
 **Output**: 
 The program produces standard regression output, with the number of observations used in the estimation, the degrees of freedom used to compute the critical values of the *t*-statistics (G-1, where G is the number of clusters in the dimension with lowest number of clusters), as well as the number of clusters in each dimension. Below the regression output, the program also lists information on the average weights assigned to observations in the final weighted least squares estimation, as well as the fraction of observations with weights below 0.5 and weights equal to zero. Illustration of output:
@@ -57,6 +58,7 @@ This program can be used to obtain standard errors for robust regression estimat
   - *s*: estimates an S-estimator (`robreg s`) instead of the default MM-estimator `robreg mm` (cannot be combined with *m* or *median* as options)  
   - *median*: estimates median regression (`robreg q`) instead of the default MM-estimator `robreg mm` (cannot be combined with *m* or *s* as options)  
   - *biweight*: when combined with option *m*, this option replaces the default Huber objective function in the M-estimator with the biweight objective function.
+  - *tol(value)*: specifies the tolerance for iterative algorithms.
 
 **Output**:
 The program produces standard regression output, with the number of observations used in the estimation and the number of clusters in each dimension. Note that the bootstrapping procedure leads to z-statistics instead of t-statistics for inference. Below the regression output, the program also lists information on the average weights assigned to observations in the final weighted least squares estimation, as well as the fraction of observations with weights below 0.5 and weights equal to zero. Illustration of output:
@@ -85,6 +87,7 @@ Syntax:
   - *s*: estimates an S-estimator (`robreg s`) instead of the default MM-estimator `robreg mm` (cannot be combined with *m* or *median* as options)  
   - *median*: estimates median regression (`robreg q`) instead of the default MM-estimator `robreg mm` (cannot be combined with *m* or *s* as options)  
   - *biweight*: when combined with option *m*, this option replaces the default Huber objective function in the M-estimator with the biweight objective function.
+  - *tol(value)*: specifies the tolerance for iterative algorithms.
 
 **Example and output**:
 
