@@ -1,4 +1,4 @@
-*! version 1.1 20210919 David Veenman
+*! version 1.1 20211011 David Veenman
 
 /* 
 20211011: 1.1  Added tolerance option
