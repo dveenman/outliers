@@ -1,8 +1,23 @@
-*! version 1.0 01july2021 David Veenman
+*! version 1.1 20211011 David Veenman
+
+/* 
+20211011: 1.1	Dropped capture to allow for hard exit from loop
+				Added tolerance option for initial estimates of coefficients
+				Added option nohaus to s and mm estimator, and nor2 to all, for faster execution
+				Small fix in scalar drop at bottom; "drop _all" causes all scalars to be dropped outside the program too
+20210701: 1.0	First version
+*/
 
 program define roboot, eclass sortpreserve
-	syntax varlist [in] [if], [cluster(varlist)] nboot(integer) [eff(real 0)] [m|s|median] [biweight]
-	
+	syntax varlist [in] [if], [cluster(varlist)] nboot(integer) [eff(real 0)] [m|s|median] [biweight] [tol(real 0)]
+		
+	if (`tol'==0){
+	    local tolerance=1e-6
+	}
+	else {
+	    local tolerance=`tol'
+	}
+
 	if ("`median'"=="" & "`s'"=="" & `eff'==0) {
 	    if ("`m'"!=""){
 			di as text "ERROR: You must specify the desired estimation efficiency in option eff() with M estimation"
@@ -26,33 +41,30 @@ program define roboot, eclass sortpreserve
 	}
 	if "`s'"!="" {
 	    local est="s"
-	    local options0=" "	    
-	    local options="tolerance(1e-3) nose"
+	    local options0="nohaus tol(`tolerance')"	    
+	    local options="tolerance(1e-3) nose nor2 nohaus"
 	}
 	if ("`m'"!="" & "`biweight'"!="") {
 		local est="m"
-	    local options0="eff(`eff') biw"	    
-	    local options="tolerance(1e-3) eff(`eff') nose biw"
+	    local options0="eff(`eff') biw tol(`tolerance')"	    
+	    local options="tolerance(1e-3) eff(`eff') nose biw nor2"
 	}
 	if ("`m'"!="" & "`biweight'"=="") {
 		local est="m"
-	    local options0="eff(`eff')"	    
-	    local options="tolerance(1e-3) eff(`eff') nose"
+	    local options0="eff(`eff') tol(`tolerance')"	    
+	    local options="tolerance(1e-3) eff(`eff') nose nor2"
 	}
 	if ("`m'"=="" & "`s'"=="") {
 	    local est="mm"
-	    local options0="eff(`eff')"	    
-	    local options="tolerance(1e-3) eff(`eff') sopts(tolerance(1e-3))"	    
+	    local options0="eff(`eff') nohaus tol(`tolerance')"	    
+	    local options="tolerance(1e-3) eff(`eff') sopts(tolerance(1e-3)) nor2 nohaus"	    
 	}
 	if "`median'"!="" {
-	    local est0="qreg"
-	    local est=" "
-	    local options0=" "	    
-	    local options=" "	    
+	    local est="q"
+	    local options0="tol(`tolerance')"	    
+	    local options="nor2"	    
 	}
-	else{
-	    local est0="robreg"		
-	}
+    local est0="robreg"
 	
 	tokenize `varlist'
 	marksample touse
@@ -73,20 +85,7 @@ program define roboot, eclass sortpreserve
 	}
 	
 	/* Obtain vector of coefficients: */
-	qui capture `est0' `est' `varlist' if `touse', `options0'
-		* If estimation fails try again with wider tolerance (default tolerance is 1e-6, widen to 1e-3 if needed):
-		if _rc>0 {
-			di "*", _continue
-			qui capture `est0' `est' `varlist' if `touse', `options0' tolerance(1e-5)
-		}
-		if _rc>0 {
-			di "*", _continue
-			qui capture `est0' `est' `varlist' if `touse', `options0' tolerance(1e-4)
-		}
-		if _rc>0 {
-			di "*", _continue
-			qui capture `est0' `est' `varlist' if `touse', `options0' tolerance(1e-3)
-		}
+	qui capture `est0' `est' `varlist' if `touse', `options0' 
 	scalar e_N=e(N)
 	scalar e_r2_p=e(r2_p)
 	if "`median'"=="" {
@@ -153,29 +152,7 @@ program define roboot, eclass sortpreserve
 		forvalues i=1(1)`nboot'{
 			qui preserve
 			qui bsample if `touse'
-			qui capture `est0' `est' `varlist' if `touse', `options'
-				* If estimation fails to converge draw new bootstrap sample (max 3 times):
-				if _rc>0 {
-					qui restore
-					qui preserve
-					qui bsample if `touse'
-					di "*", _continue
-					qui capture `est0' `est' `varlist' if `touse', `options'
-				}
-				if _rc>0 {
-					qui restore
-					qui preserve
-					qui bsample if `touse' 
-					di "*", _continue
-					qui capture `est0' `est' `varlist' if `touse', `options'
-				}
-				if _rc>0 {
-					qui restore
-					qui preserve
-					qui bsample if `touse' 
-					di "*", _continue
-					qui capture `est0' `est' `varlist' if `touse', `options'
-				}
+			qui `est0' `est' `varlist' if `touse', `options'
 			qui restore
 			qui replace `bf_0'=_b[_cons] if `n'==`i'	
 			local j=1
@@ -216,29 +193,7 @@ program define roboot, eclass sortpreserve
 		forvalues i=1(1)`nboot'{
 			qui preserve
 			qui bsample if `touse', cluster(`fcluster') 
-			qui capture `est0' `est' `varlist' if `touse', `options'
-				* If estimation fails to converge draw new bootstrap sample (max 3 times):
-				if _rc>0 {
-					qui restore
-					qui preserve
-					qui bsample if `touse', cluster(`fcluster') 
-					di "*", _continue
-					qui capture `est0' `est' `varlist' if `touse', `options'
-				}
-				if _rc>0 {
-					qui restore
-					qui preserve
-					qui bsample if `touse', cluster(`fcluster') 
-					di "*", _continue
-					qui capture `est0' `est' `varlist' if `touse', `options'
-				}
-				if _rc>0 {
-					qui restore
-					qui preserve
-					qui bsample if `touse', cluster(`fcluster') 
-					di "*", _continue
-					qui capture `est0' `est' `varlist' if `touse', `options'
-				}
+			qui `est0' `est' `varlist' if `touse', `options'
 			qui restore
 			qui replace `bf_0'=_b[_cons] if `n'==`i'	
 			local j=1
@@ -283,29 +238,7 @@ program define roboot, eclass sortpreserve
 			/* (1) First dimension */
 			qui preserve
 			qui bsample if `touse', cluster(`fcluster') 
-			qui capture `est0' `est' `varlist' if `touse', `options'
-				* If estimation fails to converge draw new bootstrap sample (max 3 times):
-				if _rc>0 {
-					qui restore
-					qui preserve
-					qui bsample if `touse', cluster(`fcluster') 
-					di "*", _continue
-					qui capture `est0' `est' `varlist' if `touse', `options'
-				}
-				if _rc>0 {
-					qui restore
-					qui preserve
-					qui bsample if `touse', cluster(`fcluster') 
-					di "*", _continue
-					qui capture `est0' `est' `varlist' if `touse', `options'
-				}
-				if _rc>0 {
-					qui restore
-					qui preserve
-					qui bsample if `touse', cluster(`fcluster') 
-					di "*", _continue
-					qui capture `est0' `est' `varlist' if `touse', `options'
-				}
+			qui `est0' `est' `varlist' if `touse', `options'
 			qui restore
 			qui replace `bf_0'=_b[_cons] if `n'==`i'	
 			local j=1
@@ -316,29 +249,7 @@ program define roboot, eclass sortpreserve
 			/* (2) Second dimension */
 			qui preserve
 			qui bsample if `touse', cluster(`tcluster') 
-			qui capture `est0' `est' `varlist' if `touse', `options'
-			* If estimation fails to converge draw new bootstrap sample (max 3 times):
-				if _rc>0 {
-					qui restore
-					qui preserve
-					qui bsample if `touse', cluster(`tcluster') 
-					di "*", _continue
-					qui capture `est0' `est' `varlist' if `touse', `options'
-				}
-				if _rc>0 {
-					qui restore
-					qui preserve
-					qui bsample if `touse', cluster(`tcluster') 
-					di "*", _continue
-					qui capture `est0' `est' `varlist' if `touse', `options'
-				}
-				if _rc>0 {
-					qui restore
-					qui preserve
-					qui bsample if `touse', cluster(`tcluster') 
-					di "*", _continue
-					qui capture `est0' `est' `varlist' if `touse', `options'
-				}
+			qui `est0' `est' `varlist' if `touse', `options'
 			qui restore
 			qui replace `bt_0'=_b[_cons] if `n'==`i'	
 			local j=1
@@ -349,29 +260,7 @@ program define roboot, eclass sortpreserve
 			/* (3) Intersection */
 			qui preserve
 			qui bsample if `touse', cluster(`intersection') 
-			qui capture `est0' `est' `varlist' if `touse', `options'
-			* If estimation fails to converge draw new bootstrap sample (max 3 times):
-				if _rc>0 {
-					qui restore
-					qui preserve
-					qui bsample if `touse', cluster(`intersection') 
-					di "*", _continue
-					qui capture `est0' `est' `varlist' if `touse', `options'
-				}
-				if _rc>0 {
-					qui restore
-					qui preserve
-					qui bsample if `touse', cluster(`intersection') 
-					di "*", _continue
-					qui capture `est0' `est' `varlist' if `touse', `options'
-				}
-				if _rc>0 {
-					qui restore
-					qui preserve
-					qui bsample if `touse', cluster(`intersection') 
-					di "*", _continue
-					qui capture `est0' `est' `varlist' if `touse', `options'
-				}
+			qui `est0' `est' `varlist' if `touse', `options'
 			qui restore
 			qui replace `bft_0'=_b[_cons] if `n'==`i'	
 			local j=1
@@ -524,7 +413,7 @@ program define roboot, eclass sortpreserve
 	}
 	di " " 
 	
-	scalar drop _all
+	scalar drop e_N e_r2_p
 	matrix drop _all
 
 end
