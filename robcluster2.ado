@@ -1,15 +1,17 @@
-*! version 1.1 20211011 David Veenman
+*! version 1.1.1 20211228 David Veenman
 
 /* 
-20211011: 1.1  Added tolerance option
-			   Improved small-sample correction for 2way variance matrix to be consistent with reghdfe
-			   Added option nohaus to s and mm estimator for faster execution
-			   Small fix in scalar drop at bottom; previous "drop _all" caused all scalars to be dropped outside the program too
-20210701: 1.0  First version
+20211228: 1.1.1	Allow for factor variables 
+				Added S options to be passed to MM estimator
+20211011: 1.1.0 Added tolerance option
+				Improved small-sample correction for 2way variance matrix to be consistent with reghdfe
+				Added option nohaus to s and mm estimator for faster execution
+				Small fix in scalar drop at bottom; previous "drop _all" caused all scalars to be dropped outside the program too
+20210701: 1.0.0	First version
 */
 
 program define robcluster2, eclass sortpreserve
-	syntax varlist [in] [if], cluster(varlist) [eff(real 0)] [m|s|median] [biweight] [tol(real 0)]
+	syntax varlist(numeric fv) [in] [if], cluster(varlist) [eff(real 0)] [m|s|median] [biweight] [tol(real 0)] [sopts(str)]
 	
 	if (`tol'==0){
 	    local tolerance=1e-6
@@ -53,7 +55,7 @@ program define robcluster2, eclass sortpreserve
 	}
 	if ("`m'"=="" & "`s'"=="") {
 	    local est="mm"
-	    local options="eff(`eff') nohaus tol(`tolerance')"	    
+	    local options="eff(`eff') nohaus tol(`tolerance') sopts(`sopts')"	    
 	}
 	if "`median'"!="" {
 	    local est="q"
@@ -64,8 +66,14 @@ program define robcluster2, eclass sortpreserve
 	tokenize `varlist'
 	marksample touse
 	local depv `"`1'"'
+	// Ensure dv is not a factor variable:
+	_fv_check_depvar `depv'
 	macro shift 1
     local indepv "`*'"
+	// Check and expand factor variable list:
+	fvexpand `indepv'
+	local indepv `r(varlist)'
+	local fvcheck `r(fvops)'
 	
 	local nc: word count `cluster'
 	if (`nc'!=2){
@@ -79,12 +87,10 @@ program define robcluster2, eclass sortpreserve
 	tempvar bf_0 bt_0 bft_0 bw n intersection unique_obs
 	qui egen `intersection'=group(`fcluster' `tcluster') if `touse'
 			
-	/* Estimation with cluster-adjustment in two dimensions 
-	(1) Cluster bootstrap samples by first dimension to derive Vf 
-	(2) Cluster bootstrap samples by second dimension to derive Vt
-	(3) Cluster bootstrap samples by intersection of dimensions to derive Vft */
+	/* Estimation with cluster-adjustment in two dimensions */
 
 	/* (1) First dimension */
+	di "1/3 Estimation for first clustering dimension..."
 	qui `est0' `est' `varlist' if `touse', `options' cluster(`fcluster')
 	if "`median'"=="" {
 		tempvar weight zero w50
@@ -127,8 +133,15 @@ program define robcluster2, eclass sortpreserve
 	matrix colnames consV = _cons
 	matrix Vf=(Vf, consV)
 	matrix Vf=diag(Vf)
+	if "`fvcheck'"=="true"{
+		local K=rowsof(Vf)-1 
+	}
+	else{
+		local K=rowsof(Vf) 
+	}
 				
 	/* (2) Second dimension */
+	di "2/3 Estimation for second clustering dimension..."
 	qui `est0' `est' `varlist' if `touse', `options' cluster(`tcluster')
 	scalar e_df_r2=e(df_r)
 	local ntcluster=e(N_clust)
@@ -150,6 +163,7 @@ program define robcluster2, eclass sortpreserve
 	matrix Vt=diag(Vt)
 
 	/* (3) Intersection */
+	di "3/3 Estimation for intersection of clustering dimensions..."	
 	qui `est0' `est' `varlist' if `touse', `options' cluster(`intersection')
 	local nftcluster=e(N_clust)
 	local j=1
@@ -177,9 +191,10 @@ program define robcluster2, eclass sortpreserve
 		local Gmin=`ntcluster'
 	}
 	local N=`nfcluster'*`ntcluster'
-	scalar factor1=(`nfcluster'/(`nfcluster'-1))*((`N'-1)/(`N'-2))
-	scalar factor2=(`ntcluster'/(`ntcluster'-1))*((`N'-1)/(`N'-2))
-	scalar factor3=(`nftcluster'/(`nftcluster'-1))*((`N'-1)/(`N'-2))
+	scalar factor1=(`nfcluster'/(`nfcluster'-1))*((`N'-1)/(`N'-`K'))
+	scalar factor2=(`ntcluster'/(`ntcluster'-1))*((`N'-1)/(`N'-`K'))
+	scalar factor3=(`nftcluster'/(`nftcluster'-1))*((`N'-1)/(`N'-`K'))
+	
 	if `nfcluster'<`ntcluster'{
 		scalar factormin=factor1
 	}
@@ -198,6 +213,7 @@ program define robcluster2, eclass sortpreserve
 	tempname b V
 	matrix `b'=coef
 	matrix `V'=Vc
+	
 	ereturn post `b' `V'
 	ereturn scalar N=e_N
 	ereturn scalar r2_p=e_r2_p
@@ -212,6 +228,7 @@ program define robcluster2, eclass sortpreserve
 
 	/* Print results */
 	di " "
+	di "---------------------------------------------------------"
 	if("`m'"=="" & "`s'"=="" & "`median'"==""){
 		di in green "MM-estimator with `eff'% efficiency and bootstrapped 2D clustered SEs" 
 	}
