@@ -1,15 +1,16 @@
-*! version 1.1 20211011 David Veenman
+*! version 1.1.1 20220106 David Veenman
 
 /* 
-20211011: 1.1	Dropped capture to allow for hard exit from loop
-				Added tolerance option for initial estimates of coefficients
-				Added option nohaus to s and mm estimator, and nor2 to all, for faster execution
-				Small fix in scalar drop at bottom; "drop _all" causes all scalars to be dropped outside the program too
-20210701: 1.0	First version
+20220106: 1.1.1		Added finite-sample correction and significance testing based on t(G-1)
+20211011: 1.1.0		Dropped capture to allow for hard exit from loop
+					Added tolerance option for initial estimates of coefficients
+					Added option nohaus to s and mm estimator, and nor2 to all, for faster execution
+					Small fix in scalar drop at bottom; "drop _all" causes all scalars to be dropped outside the program too
+20210701: 1.0.0		First version
 */
 
 program define roboot, eclass sortpreserve
-	syntax varlist [in] [if], [cluster(varlist)] nboot(integer) [eff(real 0)] [m|s|median] [biweight] [tol(real 0)]
+	syntax varlist [in] [if], [cluster(varlist)] nboot(integer) [eff(real 0)] [m|s|median] [biweight] [tol(real 0)] [nossc]
 		
 	if (`tol'==0){
 	    local tolerance=1e-6
@@ -71,6 +72,9 @@ program define roboot, eclass sortpreserve
 	local depv `"`1'"'
 	macro shift 1
     local indepv "`*'"
+	
+	local K: word count `indepv'
+	local K=`K'+1
 	
 	local nc: word count `cluster'
 	if (`nc'>2){
@@ -315,7 +319,28 @@ program define roboot, eclass sortpreserve
 		/* Create 2-dimension cluster-adjusted variance matrix */
 		matrix Vc=Vf+Vt-Vft
 	}
-		
+	
+	// Small-sample corrections:
+	if (`nc'==0){
+		scalar e_df_r=e_N-`K'
+		scalar c=e_N/(e_N-`K')
+	}
+	if (`nc'==1){
+		scalar e_df_r=`nfcluster'-1
+		scalar c=(`nfcluster'/(`nfcluster'-1))*((e_N-1)/(e_N-`K'))
+	}
+	if (`nc'==2){
+		if (`nfcluster'<`ntcluster'){
+			scalar e_df_r=`nfcluster'-1
+			scalar c=(`nfcluster'/(`nfcluster'-1))*((e_N-1)/(e_N-`K'))
+		}
+		else{
+			scalar e_df_r=`ntcluster'-1
+			scalar c=(`ntcluster'/(`ntcluster'-1))*((e_N-1)/(e_N-`K'))
+		}
+	}
+	matrix Vc=c*Vc
+	
 	/* Post results in e() */
 	ereturn clear
 	tempname b V
@@ -323,6 +348,7 @@ program define roboot, eclass sortpreserve
 	matrix `V' = Vc
 	ereturn post `b' `V'
 	ereturn scalar N=e_N
+	ereturn scalar df_r=e_df_r
 	ereturn scalar r2_p=e_r2_p
 	ereturn local depvar "`depv'"
 
