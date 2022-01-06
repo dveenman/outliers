@@ -71,9 +71,9 @@ This program can be used to obtain standard errors for robust regression estimat
   - *tol(value)*: specifies the tolerance for iterative algorithms.
 
 **Output**:
-The program produces standard regression output, with the number of observations used in the estimation and the number of clusters in each dimension. Note that the bootstrapping procedure leads to z-statistics instead of t-statistics for inference. Below the regression output, the program also lists information on the average weights assigned to observations in the final weighted least squares estimation, as well as the fraction of observations with weights below 0.5 and weights equal to zero. Illustration of output:
+The program produces standard regression output, with the number of observations used in the estimation and the number of clusters in each dimension. The bootstrapped standard errors are adjusted for a finite-sample correction similar to **robcluster2** and relies on critical values from a t-distribution with G-1 degrees of freedom following the recommendations of [Cameron and Miller (2015)](http://cameron.econ.ucdavis.edu/research/Cameron_Miller_JHR_2015_February.pdf). Below the regression output, the program also lists information on the average weights assigned to observations in the final weighted least squares estimation, as well as the fraction of observations with weights below 0.5 and weights equal to zero. Illustration of output:
 
-![image](https://user-images.githubusercontent.com/65561067/124248621-4dc49800-db23-11eb-9255-9800f7e2d26c.png)
+![image](https://user-images.githubusercontent.com/65561067/148389982-210ac155-de26-4110-af78-5803ee67f76e.png)
 
 **Examples**:
 ```
