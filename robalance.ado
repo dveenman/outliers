@@ -1,9 +1,13 @@
-*! version 1.0 01july2021 David Veenman
+*! version 1.0.1 20220106 David Veenman
+
+/* 
+20220106: 1.0.1		Fixed minor issues
+20210701: 1.0.0		First version
+*/
 
 program define robalance, sortpreserve
-	syntax varlist [in] [if], [cluster(varlist)] nboot(integer) weightvar(varname) [dummies(varlist)] [box(string)] 
+	syntax varlist, [cluster(varlist)] nboot(integer) weightvar(varname) [dummies(varlist)] [box(string)] 
 	tokenize `varlist'
-	marksample touse
 
 	local nc: word count `cluster'
 	if (`nc'>2){
@@ -53,10 +57,9 @@ program define robalance, sortpreserve
 
 	tempvar bw n n2 intersection
 	qui gen `bw'=.
-	qui gsort -`touse'
-	qui gen `n'=_n if `touse'
+	qui gen `n'=_n
 	qui gen `n2'=.
-	qui egen `intersection'=group(`fcluster' `tcluster') if `touse'
+	qui egen `intersection'=group(`fcluster' `tcluster') 
 	
 	/* Estimation without clustering */
 	if (`nc'==0){	
@@ -138,20 +141,20 @@ program define robalance, sortpreserve
 	}
 
 	forvalues i=1(1)`nboot'{
-		bsample if `touse', weight(`bw')
+		bsample, weight(`bw')
 			qui expand `bw'
 			qui sort `n'
 			qui by `n': replace `n2'=_n
 			local j=1
 			foreach var of local varlist{
-				qui sum `var' if `bw'>0 & `touse', d
+				qui sum `var' if `bw'>0, d
 				qui replace `p5_`j''=r(p5) if `n'==`i'
 				qui replace `p25_`j''=r(p25) if `n'==`i'
 				qui replace `p50_`j''=r(p50) if `n'==`i'
 				qui replace `p75_`j''=r(p75) if `n'==`i'
 				qui replace `p95_`j''=r(p95) if `n'==`i'
 				qui replace `mean_`j''=r(mean) if `n'==`i'
-				qui sum `var' [aw=`weightvar'] if `bw'>0 & `touse', d
+				qui sum `var' [aw=`weightvar'] if `bw'>0, d
 				qui replace `p5w_`j''=r(p5) if `n'==`i'
 				qui replace `p25w_`j''=r(p25) if `n'==`i'
 				qui replace `p50w_`j''=r(p50) if `n'==`i'
@@ -252,20 +255,20 @@ program define robalance, sortpreserve
 	}
 
 	forvalues i=1(1)`nboot'{
-		bsample if `touse', cluster(`fcluster') weight(`bw')
+		bsample, cluster(`fcluster') weight(`bw')
 			qui expand `bw'
 			qui sort `n'
 			qui by `n': replace `n2'=_n
 			local j=1
 			foreach var of local varlist{
-				qui sum `var' if `bw'>0 & `touse', d
+				qui sum `var' if `bw'>0, d
 				qui replace `p5_`j''=r(p5) if `n'==`i'
 				qui replace `p25_`j''=r(p25) if `n'==`i'
 				qui replace `p50_`j''=r(p50) if `n'==`i'
 				qui replace `p75_`j''=r(p75) if `n'==`i'
 				qui replace `p95_`j''=r(p95) if `n'==`i'
 				qui replace `mean_`j''=r(mean) if `n'==`i'
-				qui sum `var' [aw=`weightvar'] if `bw'>0 & `touse', d
+				qui sum `var' [aw=`weightvar'] if `bw'>0, d
 				qui replace `p5w_`j''=r(p5) if `n'==`i'
 				qui replace `p25w_`j''=r(p25) if `n'==`i'
 				qui replace `p50w_`j''=r(p50) if `n'==`i'
@@ -368,20 +371,20 @@ program define robalance, sortpreserve
 	}
 
 	forvalues i=1(1)`nboot'{
-		bsample if `touse', cluster(`fcluster') weight(`bw')
+		bsample, cluster(`fcluster') weight(`bw')
 			qui expand `bw'
 			qui sort `n'
 			qui by `n': replace `n2'=_n
 			local j=1
 			foreach var of local varlist{
-				qui sum `var' if `bw'>0 & `touse', d
+				qui sum `var' if `bw'>0, d
 				qui replace `p5_`j'_1'=r(p5) if `n'==`i'
 				qui replace `p25_`j'_1'=r(p25) if `n'==`i'
 				qui replace `p50_`j'_1'=r(p50) if `n'==`i'
 				qui replace `p75_`j'_1'=r(p75) if `n'==`i'
 				qui replace `p95_`j'_1'=r(p95) if `n'==`i'
 				qui replace `mean_`j'_1'=r(mean) if `n'==`i'
-				qui sum `var' [aw=`weightvar'] if `bw'>0 & `touse', d
+				qui sum `var' [aw=`weightvar'] if `bw'>0, d
 				qui replace `p5w_`j'_1'=r(p5) if `n'==`i'
 				qui replace `p25w_`j'_1'=r(p25) if `n'==`i'
 				qui replace `p50w_`j'_1'=r(p50) if `n'==`i'
@@ -398,20 +401,20 @@ program define robalance, sortpreserve
 			}
 			qui keep if `n2'==1
 			qui replace `n2'=.		
-		bsample if `touse', cluster(`tcluster') weight(`bw')
+		bsample, cluster(`tcluster') weight(`bw')
 			qui expand `bw'
 			qui sort `n'
 			qui by `n': replace `n2'=_n
 			local j=1
 			foreach var of local varlist{
-				qui sum `var' if `bw'>0 & `touse', d
+				qui sum `var' if `bw'>0, d
 				qui replace `p5_`j'_2'=r(p5) if `n'==`i'
 				qui replace `p25_`j'_2'=r(p25) if `n'==`i'
 				qui replace `p50_`j'_2'=r(p50) if `n'==`i'
 				qui replace `p75_`j'_2'=r(p75) if `n'==`i'
 				qui replace `p95_`j'_2'=r(p95) if `n'==`i'
 				qui replace `mean_`j'_2'=r(mean) if `n'==`i'
-				qui sum `var' [aw=`weightvar'] if `bw'>0 & `touse', d
+				qui sum `var' [aw=`weightvar'] if `bw'>0, d
 				qui replace `p5w_`j'_2'=r(p5) if `n'==`i'
 				qui replace `p25w_`j'_2'=r(p25) if `n'==`i'
 				qui replace `p50w_`j'_2'=r(p50) if `n'==`i'
@@ -428,20 +431,20 @@ program define robalance, sortpreserve
 			}
 			qui keep if `n2'==1
 			qui replace `n2'=.		
-		bsample if `touse', cluster(`intersection') weight(`bw')
+		bsample, cluster(`intersection') weight(`bw')
 			qui expand `bw'
 			qui sort `n'
 			qui by `n': replace `n2'=_n
 			local j=1
 			foreach var of local varlist{
-				qui sum `var' if `bw'>0 & `touse', d
+				qui sum `var' if `bw'>0, d
 				qui replace `p5_`j'_3'=r(p5) if `n'==`i'
 				qui replace `p25_`j'_3'=r(p25) if `n'==`i'
 				qui replace `p50_`j'_3'=r(p50) if `n'==`i'
 				qui replace `p75_`j'_3'=r(p75) if `n'==`i'
 				qui replace `p95_`j'_3'=r(p95) if `n'==`i'
 				qui replace `mean_`j'_3'=r(mean) if `n'==`i'
-				qui sum `var' [aw=`weightvar'] if `bw'>0 & `touse', d
+				qui sum `var' [aw=`weightvar'] if `bw'>0, d
 				qui replace `p5w_`j'_3'=r(p5) if `n'==`i'
 				qui replace `p25w_`j'_3'=r(p25) if `n'==`i'
 				qui replace `p50w_`j'_3'=r(p50) if `n'==`i'
@@ -464,14 +467,14 @@ program define robalance, sortpreserve
 	
 	local j=1
 	foreach var of local varlist{
-		qui sum `var' if `touse', d
+		qui sum `var', d
 		qui replace `full_p5_`j''=r(p5) if `n'==1
 		qui replace `full_p25_`j''=r(p25) if `n'==1
 		qui replace `full_p50_`j''=r(p50) if `n'==1
 		qui replace `full_p75_`j''=r(p75) if `n'==1
 		qui replace `full_p95_`j''=r(p95) if `n'==1
 		qui replace `full_mean_`j''=r(mean) if `n'==1
-		qui sum `var' [aw=`weightvar'] if `touse', d
+		qui sum `var' [aw=`weightvar'], d
 		qui replace `full_p5w_`j''=r(p5) if `n'==1
 		qui replace `full_p25w_`j''=r(p25) if `n'==1
 		qui replace `full_p50w_`j''=r(p50) if `n'==1
@@ -642,19 +645,19 @@ program define robalance, sortpreserve
 		else{
 			di "`var'" 
 			di _column(5) "Base" ///
-				_column(25) %5.3f `full_mean_`j'' ///
-				_column(37) %5.3f `full_p5_`j'' ///
-				_column(49) %5.3f `full_p25_`j'' ///
-				_column(61) %5.3f `full_p50_`j'' ///
-				_column(73) %5.3f `full_p75_`j'' ///
-				_column(85) %5.3f `full_p95_`j'' 
+				_column(25) %5.4f `full_mean_`j'' ///
+				_column(37) %5.4f `full_p5_`j'' ///
+				_column(49) %5.4f `full_p25_`j'' ///
+				_column(61) %5.4f `full_p50_`j'' ///
+				_column(73) %5.4f `full_p75_`j'' ///
+				_column(85) %5.4f `full_p95_`j'' 
 			di _column(5) "Weighted" ///
-				_column(25) %5.3f `full_meanw_`j'' ///
-				_column(37) %5.3f `full_p5w_`j'' ///
-				_column(49) %5.3f `full_p25w_`j'' ///
-				_column(61) %5.3f `full_p50w_`j'' ///
-				_column(73) %5.3f `full_p75w_`j'' ///
-				_column(85) %5.3f `full_p95w_`j'' 
+				_column(25) %5.4f `full_meanw_`j'' ///
+				_column(37) %5.4f `full_p5w_`j'' ///
+				_column(49) %5.4f `full_p25w_`j'' ///
+				_column(61) %5.4f `full_p50w_`j'' ///
+				_column(73) %5.4f `full_p75w_`j'' ///
+				_column(85) %5.4f `full_p95w_`j'' 
 			di _column(5) "z-stat:"  ///
 				_column(25) %5.2f `z_mean' ///
 				_column(37) %5.2f `z_p5' ///
@@ -669,11 +672,11 @@ program define robalance, sortpreserve
 	
 	if ("`box'"!=""){
 		preserve
-		qui expand 2 if `touse'
+		qui expand 2
 		qui sort `n'
-		qui by `n': gen d=_n-1 if `touse'
+		qui by `n': gen d=_n-1
 		qui sum d
-		qui drop if d==1 & w_mm70<.5
+		qui drop if d==1 & `weightvar'<.5
 		local j=1
 		foreach var of local varlist{
 			if strpos("`dummies'","`var'"){
