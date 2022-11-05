@@ -1,361 +1,288 @@
-*! version 1.1.1 20220106 David Veenman
+*! version 2.0.0 20221105 David Veenman
 
 /* 
-20220106: 1.1.1		Added finite-sample correction and significance testing based on t(G-1)
-20211011: 1.1.0		Dropped capture to allow for hard exit from loop
-					Added tolerance option for initial estimates of coefficients
-					Added option nohaus to s and mm estimator, and nor2 to all, for faster execution
-					Small fix in scalar drop at bottom; "drop _all" causes all scalars to be dropped outside the program too
-20210701: 1.0.0		First version
+20221105: 2.0.0     Complete new version based on fast bootstrap for MM estimators following Salibian-Barrera and Zamar (2002) [SZ2002]
+                    Option for cluster-bootstrap up to two dimensions by adjusting bootstrap in SZ2002 to pairs-cluster bootstrap
+                    Including computationally efficient procedure from MacKinnon (2022) by drawing lower-dimensional matrices in cluster bootstrap
+20220106: 1.1.1     Added finite-sample correction and significance testing based on t(G-1)
+20211011: 1.1.0     Dropped capture to allow for hard exit from loop
+                    Added tolerance option for initial estimates of coefficients
+                    Added option nohaus to s and mm estimator, and nor2 to all, for faster execution
+                    Small fix in scalar drop at bottom; "drop _all" causes all scalars to be dropped outside the program too
+20210701: 1.0.0     First version
 */
 
 program define roboot, eclass sortpreserve
-	syntax varlist [in] [if], [cluster(varlist)] nboot(integer) [eff(real 0)] [m|s|median] [biweight] [tol(real 0)] [nossc]
-		
+	syntax varlist(numeric fv) [in] [if], [cluster(varlist)] nboot(integer) eff(real) [tol(real 0)] [sopts(str)] [weightvar(str)] [seed(integer 0)]
+	
+	if (`seed'==0){
+		di ""
+		di as text "Careful: make sure to use seed() option or the 'set seed' command in Stata to obtain reproducable results!"
+	}
+	else{
+		set seed `seed'
+	}
+	
 	if (`tol'==0){
 	    local tolerance=1e-6
 	}
 	else {
 	    local tolerance=`tol'
 	}
-
-	if ("`median'"=="" & "`s'"=="" & `eff'==0) {
-	    if ("`m'"!=""){
-			di as text "ERROR: You must specify the desired estimation efficiency in option eff() with M estimation"
-		}
-		else{
-		    di as text "ERROR: You must specify the desired estimation efficiency in option eff() with MM estimation"
-		}
-		exit
-	}
-	if ("`m'"!="" & "`s'"!="") {
-	    di as text "ERROR: Cannot specify both S and M estimation"
-		exit
-	}
-	if ("`median'"!="" & "`s'"!="") {
-	    di as text "ERROR: Cannot specify both S estimation and median regression"
-		exit
-	}
-	if ("`median'"!="" & "`s'"!="") {
-	    di as text "ERROR: Cannot specify both M estimation and median regression"
-		exit
-	}
-	if "`s'"!="" {
-	    local est="s"
-	    local options0="nohaus tol(`tolerance')"	    
-	    local options="tolerance(1e-3) nose nor2 nohaus"
-	}
-	if ("`m'"!="" & "`biweight'"!="") {
-		local est="m"
-	    local options0="eff(`eff') biw tol(`tolerance')"	    
-	    local options="tolerance(1e-3) eff(`eff') nose biw nor2"
-	}
-	if ("`m'"!="" & "`biweight'"=="") {
-		local est="m"
-	    local options0="eff(`eff') tol(`tolerance')"	    
-	    local options="tolerance(1e-3) eff(`eff') nose nor2"
-	}
-	if ("`m'"=="" & "`s'"=="") {
-	    local est="mm"
-	    local options0="eff(`eff') nohaus tol(`tolerance')"	    
-	    local options="tolerance(1e-3) eff(`eff') sopts(tolerance(1e-3)) nor2 nohaus"	    
-	}
-	if "`median'"!="" {
-	    local est="q"
-	    local options0="tol(`tolerance')"	    
-	    local options="nor2"	    
-	}
-    local est0="robreg"
 	
 	tokenize `varlist'
 	marksample touse
 	local depv `"`1'"'
+	// Ensure dv is not a factor variable:
+	_fv_check_depvar `depv'
 	macro shift 1
     local indepv "`*'"
+	// Check and expand factor variable list:
+	fvexpand `indepv'
+	local indepv `r(varlist)'
+	local fvcheck `r(fvops)'
 	
-	local K: word count `indepv'
-	local K=`K'+1
-	
-	local nc: word count `cluster'
-	if (`nc'>2){
+	local ncdim: word count `cluster'
+	if (`ncdim'>2){
 	    di as text "ERROR: Maximum number of dimensions to cluster on is two"
 		exit
 	}
-	if (`nc'>0){
-		local fcluster: word 1 of `cluster'
+	if (`ncdim'>0){
+		local clusterdim1: word 1 of `cluster'
 	}
-	if (`nc'>1){
-		local tcluster: word 2 of `cluster'
+	if (`ncdim'>1){
+		local clusterdim2: word 2 of `cluster'
 	}
-	
-	/* Obtain vector of coefficients: */
-	qui capture `est0' `est' `varlist' if `touse', `options0' 
-	scalar e_N=e(N)
-	scalar e_r2_p=e(r2_p)
-	if "`median'"=="" {
-		tempvar robweight zero w50
-		qui predict `robweight' if `touse', weights
-		qui reg `varlist' if `touse' [aw=`robweight']
-		matrix coef=e(b)
-		qui gen `zero'=0 if `touse'
-		qui replace `zero'=1 if `touse' & `robweight'==0
-		qui gen `w50'=0 if `touse'
-		qui replace `w50'=1 if `touse' & `robweight'<.5
-		qui sum `robweight' if `touse' 
-		local avweight=r(mean)
-		qui sum `zero' if `touse'
-		local fraczero=r(mean)
-		qui sum `w50' if `touse'
-		local fraclow=r(mean)
-	}
-	else{
-		matrix coef=e(b)
-	}	
-	
-	/* Create temporary variables: */
-	tempvar bf_0 bt_0 bft_0 bw n unique_obs
-	* The following are variables that will contain the bootstrapped coefficients
-	local j=1
-	foreach var of local indepv{
-		tempvar bf_`j'
-		qui gen `bf_`j''=.
-		tempvar bt_`j'
-		qui gen `bt_`j''=.
-		tempvar bft_`j'
-		qui gen `bft_`j''=.
-		local j=`j'+1
-	}
-	
-	qui gen `bf_0'=.
-	qui gen `bt_0'=.
-	qui gen `bft_0'=.
-	qui gen `bw'=.
-	qui gen `n'=_n
 	
 	/* Create variable for intersection between two clustering dimensions: */
-	if (`nc'==2){	    
+	if (`ncdim'==2){	    
 		tempvar intersection
-		qui egen `intersection'=group(`fcluster' `tcluster') if `touse'
+		qui egen `intersection'=group(`clusterdim1' `clusterdim2') if `touse'
 	}	
-	/* Store number of clusters by cluster dimension */
-	if (`nc'>0){
-		qui reg `varlist' if `touse', robust cluster(`fcluster')
-		local nfcluster=e(N_clust)
-	}
-	if (`nc'>1){
-		qui reg `varlist' if `touse', robust cluster(`tcluster')
-		local ntcluster=e(N_clust)
-	}
 	
+	/////////////////////////////////////////////////////////////////////////////////////////
+	/////////////////////////////////////////////////////////////////////////////////////////
+	// Step 0: Obtain coefficients, scale, and residuals from robust estimation:
+	/////////////////////////////////////////////////////////////////////////////////////////
+	/////////////////////////////////////////////////////////////////////////////////////////
 	di ""
+	di as text "STEP 1: Obtaining robust regression estimates, residuals, and scale estimate..."
+	di ""
+	capture robreg mm `varlist' if `touse', eff(`eff') nohaus tol(`tolerance') nose sopts(`sopts')
 	
-	/* Estimation without clustering */
-	if (`nc'==0){
-		/* Perform estimations for each bootstrap sample  */
-		di in green "Performing bootstrap resampling:"
-		forvalues i=1(1)`nboot'{
-			qui preserve
-			qui bsample if `touse'
-			qui `est0' `est' `varlist' if `touse', `options'
-			qui restore
-			qui replace `bf_0'=_b[_cons] if `n'==`i'	
-			local j=1
-			foreach var of local indepv{
-				qui replace `bf_`j''=_b[``j''] if `n'==`i'	
-				local j=`j'+1
-			}
-			di ".", _continue
-		}
-
-		/* Store bootstrap sample variances of coeff per variable in matrix Vf */
-		local j=1
-		foreach var of local indepv{
-			qui sum `bf_`j''
-			matrix vf_`j'=r(Var)
-			matrix rownames vf_`j' = ``j''
-			if (`j'==1){
-				matrix Vf=(vf_`j')
-			}
-			else{
-				matrix Vf=(Vf \ vf_`j')
-			}
-			local j=`j'+1
-		}
-		/* Add variance of intercept coefficients */	
-		qui sum `bf_0'
-		matrix cons_f=r(Var)	
-		matrix rownames cons_f = _cons
-		matrix Vf=(Vf \ cons_f)
-		/* Transform to symmetric diagonal matrices */		
-		matrix Vc=diag(Vf)
+	if _rc>0 {
+		di "Estimation failed - trying again... try 2"
+		capture noisily `est0' `est' `varlist' if `touse', `options' nose
+	}
+	if _rc>0 {
+		di "Estimation failed - trying again... try 3"
+		capture noisily `est0' `est' `varlist' if `touse', `options' nose
+	}
+	if _rc>0 {
+		di "Estimation failed - trying again... try 4"
+		capture noisily `est0' `est' `varlist' if `touse', `options' nose
+	}
+	if _rc>0 {
+		di "Estimation failed - trying again... final try"
+		capture noisily `est0' `est' `varlist' if `touse', `options' nose
 	}
 
-	/* Estimation with cluster-adjustment in one dimension */
-	if (`nc'==1){
-		/* Perform estimations for each bootstrap sample  */
-		di in green "Performing bootstrap resampling:"
-		forvalues i=1(1)`nboot'{
-			qui preserve
-			qui bsample if `touse', cluster(`fcluster') 
-			qui `est0' `est' `varlist' if `touse', `options'
-			qui restore
-			qui replace `bf_0'=_b[_cons] if `n'==`i'	
-			local j=1
-			foreach var of local indepv{
-				qui replace `bf_`j''=_b[``j''] if `n'==`i'	
-				local j=`j'+1
-			}
-			di ".", _continue
-		}
-
-		/* Store bootstrap sample variances of coeff per variable in matrices Vf */
-		local j=1
-		foreach var of local indepv{
-			qui sum `bf_`j''
-			matrix vf_`j'=r(Var)
-			matrix rownames vf_`j' = ``j''
-			if (`j'==1){
-				matrix Vf=(vf_`j')
-			}
-			else{
-				matrix Vf=(Vf \ vf_`j')
-			}
-			local j=`j'+1
-		}
-		/* Add variance of intercept coefficients */	
-		qui sum `bf_0'
-		matrix cons_f=r(Var)	
-		matrix rownames cons_f = _cons
-		matrix Vf=(Vf \ cons_f)
-		/* Transform to symmetric diagonal matrices */		
-		matrix Vc=diag(Vf)
+	scalar e_N=e(N)
+	scalar e_r2_p=e(r2_p)
+	if (`ncdim'==0){
+		scalar e_df_r=e(df_r)
 	}
 	
-	/* Estimation with cluster-adjustment in two dimensions */
-	if (`nc'==2){	    
-		/* Perform estimations for each bootstrap sample 
-		(1) Cluster bootstrap samples by first dimension (e.g., firm) to derive Vf 
-		(2) Cluster bootstrap samples by second dimension (e.g., time) to derive Vt
-		(3) Cluster bootstrap samples by intersection of the dimensions to derive Vft */
-		di in green "Performing bootstrap resampling:"
-		forvalues i=1(1)`nboot'{
-			/* (1) First dimension */
-			qui preserve
-			qui bsample if `touse', cluster(`fcluster') 
-			qui `est0' `est' `varlist' if `touse', `options'
-			qui restore
-			qui replace `bf_0'=_b[_cons] if `n'==`i'	
-			local j=1
-			foreach var of local indepv{
-				qui replace `bf_`j''=_b[``j''] if `n'==`i'	
-				local j=`j'+1
-			}
-			/* (2) Second dimension */
-			qui preserve
-			qui bsample if `touse', cluster(`tcluster') 
-			qui `est0' `est' `varlist' if `touse', `options'
-			qui restore
-			qui replace `bt_0'=_b[_cons] if `n'==`i'	
-			local j=1
-			foreach var of local indepv{
-				qui replace `bt_`j''=_b[``j''] if `n'==`i'	
-				local j=`j'+1
-			}
-			/* (3) Intersection */
-			qui preserve
-			qui bsample if `touse', cluster(`intersection') 
-			qui `est0' `est' `varlist' if `touse', `options'
-			qui restore
-			qui replace `bft_0'=_b[_cons] if `n'==`i'	
-			local j=1
-			foreach var of local indepv{
-				qui replace `bft_`j''=_b[``j''] if `n'==`i'	
-				local j=`j'+1
-			}
-			di ".", _continue
-		}
+	if "`fvcheck'"=="true"{
+		scalar p=(e(df_m)+2)
+	}
+	else{
+		scalar p=(e(df_m)+1)
+	}
+	matrix bmm0=(e(b)[1,1..p])'
+	
+	matrix bmm=J(p,1,0)
+	local k=p
+	forvalues i=1(1)`k'{
+		matrix bmm[`i', 1]=bmm0[`i', 1]
+	}
+	matrix bs=(e(b)[1,(p+1)..(2*p)])'
+	
+	scalar scale=e(scale)
+	scalar kmm=e(k)
+	scalar ks=e(kS)
 
-		/* Store bootstrap sample variances of coeff per variable in matrices Vf, Vt, and Vft */
-		local j=1
-		foreach var of local indepv{
-			qui sum `bf_`j''
-			matrix vf_`j'=r(Var)
-			matrix rownames vf_`j' = ``j''
-			qui sum `bt_`j''
-			matrix vt_`j'=r(Var)
-			matrix rownames vt_`j' = ``j''
-			qui sum `bft_`j''
-			matrix vft_`j'=r(Var)
-			matrix rownames vft_`j' = ``j''
-			if (`j'==1){
-				matrix Vf=(vf_`j')
-				matrix Vt=(vt_`j')
-				matrix Vft=(vft_`j')
-			}
-			else{
-				matrix Vf=(Vf \ vf_`j')
-				matrix Vt=(Vt \ vt_`j')
-				matrix Vft=(Vft \ vft_`j')
-			}
-			local j=`j'+1
+	if ("`weightvar'"!="") {
+		capture drop `weightvar'
+		predict `weightvar', w 
+	}
+	tempvar weight zero w50
+	qui predict `weight' if `touse', weights
+	qui gen `zero'=0 if `touse'
+	qui replace `zero'=1 if `touse' & `weight'==0
+	qui gen `w50'=0 if `touse'
+	qui replace `w50'=1 if `touse' & `weight'<.5
+	qui sum `weight' if `touse' 
+	local avweight=r(mean)
+	qui sum `zero' if `touse'
+	local fraczero=r(mean)
+	qui sum `w50' if `touse'
+	local fraclow=r(mean)
+	
+	local indepvnames "`indepv' _cons"
+	if (`ncdim'>=1){	
+		/////////////////////////////////////////////////////////////////////////////////////////
+		/////////////////////////////////////////////////////////////////////////////////////////
+		// Step 1: Getting cluster-robust VCE for first dimension  
+		/////////////////////////////////////////////////////////////////////////////////////////
+		/////////////////////////////////////////////////////////////////////////////////////////
+		di as text "STEP 2: Obtaining cluster-robust variance estimators..."
+		if (`ncdim'==2){
+			di "STEP 2A: First clustering dimension..."
 		}
-		/* Add variance of intercept coefficients */	
-		qui sum `bf_0'
-		matrix cons_f=r(Var)	
-		matrix rownames cons_f = _cons
-		qui sum `bt_0'
-		matrix cons_t=r(Var)	
-		matrix rownames cons_t = _cons
-		qui sum `bft_0'
-		matrix cons_ft=r(Var)	
-		matrix rownames cons_ft = _cons	
-		matrix Vf=(Vf \ cons_f)
-		matrix Vt=(Vt \ cons_t)
-		matrix Vft=(Vft \ cons_ft)
-		/* Transform to symmetric diagonal matrices */	
-		matrix Vf=diag(Vf)
-		matrix Vt=diag(Vt)
-		matrix Vft=diag(Vft)
-		/* Create 2-dimension cluster-adjusted variance matrix */
-		matrix Vc=Vf+Vt-Vft
+		tempvar clusterid
+		egen `clusterid'=group(`clusterdim1') if `touse'
+		sort `clusterid' 
+		qui by `clusterid': gen _cvarn_temp=_n if `touse'
+		qui replace _cvarn_temp=. if _cvarn_temp>1		
+		local cvar "`clusterid'"	
+		local cvarn "`clusterid' _cvarn_temp"
+		mata: _vce_cluster(`nboot')
+		local nclusterdim1=nc
+		scalar e_df_r1=nc-1
+		matrix colnames Vclust=`indepvnames'
+		matrix rownames Vclust=`indepvnames'	
+		matrix V1=Vclust
+		drop _cvarn_temp
 	}
 	
-	// Small-sample corrections:
-	if (`nc'==0){
-		scalar e_df_r=e_N-`K'
-		scalar c=e_N/(e_N-`K')
-	}
-	if (`nc'==1){
-		scalar e_df_r=`nfcluster'-1
-		scalar c=(`nfcluster'/(`nfcluster'-1))*((e_N-1)/(e_N-`K'))
-	}
-	if (`nc'==2){
-		if (`nfcluster'<`ntcluster'){
-			scalar e_df_r=`nfcluster'-1
-			scalar c=(`nfcluster'/(`nfcluster'-1))*((e_N-1)/(e_N-`K'))
+	if (`ncdim'==2){		
+		/////////////////////////////////////////////////////////////////////////////////////////
+		/////////////////////////////////////////////////////////////////////////////////////////
+		// Step 2: Getting cluster-robust VCE for second dimension 
+		/////////////////////////////////////////////////////////////////////////////////////////
+		/////////////////////////////////////////////////////////////////////////////////////////
+		di "STEP 2B: Second clustering dimension..."
+		tempvar clusterid
+		egen `clusterid'=group(`clusterdim2') if `touse'
+		sort `clusterid' 
+		qui by `clusterid': gen _cvarn_temp=_n if `touse'
+		qui replace _cvarn_temp=. if _cvarn_temp>1
+		local cvar "`clusterid'"	
+		local cvarn "`clusterid' _cvarn_temp"
+		mata: _vce_cluster(`nboot')
+		local nclusterdim2=nc
+		scalar e_df_r2=nc-1
+		matrix colnames Vclust=`indepvnames'
+		matrix rownames Vclust=`indepvnames'	
+		matrix V2=Vclust
+		drop _cvarn_temp
+			
+		/////////////////////////////////////////////////////////////////////////////////////////
+		/////////////////////////////////////////////////////////////////////////////////////////
+		// Step 3: Getting cluster-robust VCE for second dimension 
+		/////////////////////////////////////////////////////////////////////////////////////////
+		/////////////////////////////////////////////////////////////////////////////////////////
+		di "STEP 2C: Intersection of the two clustering dimensions..."
+		tempvar clusterid
+		egen `clusterid'=group(`intersection') if `touse'
+		sort `clusterid' 
+		qui by `clusterid': gen _cvarn_temp=_n if `touse'
+		qui replace _cvarn_temp=. if _cvarn_temp>1
+		local cvar "`clusterid'"	
+		local cvarn "`clusterid' _cvarn_temp"
+		mata: _vce_cluster_inter(`nboot')
+		matrix colnames Vclust=`indepvnames'
+		matrix rownames Vclust=`indepvnames'	
+		matrix V3=Vclust
+		drop _cvarn_temp
+			
+		/////////////////////////////////////////////////////////////////////////////////////////
+		/////////////////////////////////////////////////////////////////////////////////////////
+		// Step 4: Combining VCEs and applying small sample correction: 
+		/////////////////////////////////////////////////////////////////////////////////////////
+		/////////////////////////////////////////////////////////////////////////////////////////
+		matrix Vc=V1+V2-V3
+		matrix colnames Vc=`indepvnames'
+		matrix rownames Vc=`indepvnames'
+			
+		local N=e_N
+		if "`fvcheck'"=="true"{
+			local K=rowsof(Vc)-1
 		}
 		else{
-			scalar e_df_r=`ntcluster'-1
-			scalar c=(`ntcluster'/(`ntcluster'-1))*((e_N-1)/(e_N-`K'))
+			local K=rowsof(Vc) 
+		}
+
+		scalar factor1=(`nclusterdim1'/(`nclusterdim1'-1))*((`N'-1)/(`N'-`K'))
+		scalar factor2=(`nclusterdim2'/(`nclusterdim2'-1))*((`N'-1)/(`N'-`K'))
+
+		if `nclusterdim1'<`nclusterdim2'{
+			scalar factormin=factor1
+		}
+		else{
+			scalar factormin=factor2
+		}
+		matrix Vc=factormin*Vc			
+		if e_df_r1<e_df_r2{
+			scalar e_df_r=e_df_r1
+		}
+		else{
+			scalar e_df_r=e_df_r2
 		}
 	}
-	matrix Vc=c*Vc
-	
-	/* Post results in e() */
+	else{
+		if (`ncdim'==1) {
+			matrix Vc=V1
+			local indepvnames "`indepv' _cons"
+			matrix colnames Vc=`indepvnames'
+			matrix rownames Vc=`indepvnames'
+				
+			local N=e_N
+			if "`fvcheck'"=="true"{
+				local K=rowsof(Vc)-1
+			}
+			else{
+				local K=rowsof(Vc) 
+			}
+
+			scalar factor=(`nclusterdim1'/(`nclusterdim1'-1))*((`N'-1)/(`N'-`K'))
+			matrix Vc=factor*Vc
+			scalar e_df_r=e_df_r1			
+		}		
+		if (`ncdim'==0) {
+			di "STEP 2: Estimating bootstrapped standard errors..."
+			mata: _vce_nocl(`nboot')
+			matrix colnames Vnoclust=`indepvnames'
+			matrix rownames Vnoclust=`indepvnames'	
+			matrix Vc=Vnoclust
+		}
+	}
+		
+	/////////////////////////////////////////////////////////////////////////////////////////
+	/////////////////////////////////////////////////////////////////////////////////////////
+	// Step 5: Post resuls in e() and print results:
+	/////////////////////////////////////////////////////////////////////////////////////////
+	/////////////////////////////////////////////////////////////////////////////////////////
 	ereturn clear
 	tempname b V
-	matrix `b' = coef
-	matrix `V' = Vc
+
+	matrix rownames bmm=`indepvnames'
+	matrix colnames Vc=`indepvnames'
+	matrix rownames Vc=`indepvnames'	
+	matrix `b'=bmm'
+	matrix `V'=Vc
+	
 	ereturn post `b' `V'
+	
 	ereturn scalar N=e_N
-	ereturn scalar df_r=e_df_r
 	ereturn scalar r2_p=e_r2_p
 	ereturn local depvar "`depv'"
-
-	/* Print results */
+	ereturn scalar df_r=e_df_r
+		
 	di " "
 	di " "
-	if (`nc'==0){
+	if (`ncdim'==0){
 		if("`m'"=="" & "`s'"=="" & "`median'"==""){
 			di in green "MM-estimator with `eff'% efficiency and bootstrapped SEs" 
 		}
@@ -372,7 +299,7 @@ program define roboot, eclass sortpreserve
 			di in green "Median regression with bootstrapped SEs" 
 		}
 	}
-	if (`nc'==1){
+	if (`ncdim'==1){
 		if("`m'"=="" & "`s'"=="" & "`median'"==""){
 			di in green "MM-estimator with `eff'% efficiency and bootstrapped clustered SEs" 
 		}
@@ -389,7 +316,7 @@ program define roboot, eclass sortpreserve
 			di in green "Median regression with bootstrapped clustered SEs" 
 		}
 	}
-	if (`nc'==2){
+	if (`ncdim'==2){
 		if("`m'"=="" & "`s'"=="" & "`median'"==""){
 			di in green "MM-estimator with `eff'% efficiency and bootstrapped 2D clustered SEs" 
 		}
@@ -409,37 +336,276 @@ program define roboot, eclass sortpreserve
 	di " "
 	di in green "Number of bootstrap samples = " _column(31) %5.0f in yellow `nboot' ///
 		_column(56) in green "Number of obs = " %7.0f in yellow e(N)
-	if (`nc'==0){
+	if (`ncdim'==0){
 	    di _column(56) in green "Pseudo R2 =     " %7.4f in yellow e(r2_p)
 	}
-	if (`nc'>0){
-		di in green "Number of clusters (`fcluster') = " _column(31) %5.0f in yellow `nfcluster' ///
+	if (`ncdim'>0){
+		di in green "Number of clusters (`clusterdim1') = " _column(31) %5.0f in yellow `nclusterdim1' ///
 			_column(56) in green "Pseudo R2 =     " %7.4f in yellow e(r2_p)
 	}
-	if (`nc'>1){
-		di in green "Number of clusters (`tcluster') = " _column(31) %5.0f in yellow `ntcluster' 
+	if (`ncdim'>1){
+		di in green "Number of clusters (`clusterdim2') = " _column(31) %5.0f in yellow `nclusterdim2' 
 	}
 			
 	ereturn display
-	if (`nc'==0){
+	if (`ncdim'==0){
 	    di "SE not adjusted for clustering" 
 	}
-	if (`nc'==1){
-	    di "SE clustered by " "`fcluster'" 
+	if (`ncdim'==1){
+	    di "SE clustered by " "`clusterdim1'" 
 	}
-	if (`nc'==2){
-	    di "SE clustered by " "`fcluster'" " and " "`tcluster'" 
+	if (`ncdim'==2){
+	    di "SE clustered by " "`clusterdim1'" " and " "`clusterdim2'" 
 	}	
 	di " " 
 
-	if "`median'"=="" {
-		di as text "Average weight assigned to observations:               " %7.4f in yellow `avweight'
-		di as text "Fraction of observations with weight < 0.50:           " %7.4f in yellow `fraclow'
-		di as text "Fraction of observations with weight equal to zero:    " %7.4f in yellow `fraczero'
-	}
+	di as text "Average weight assigned to observations:               " %7.4f in yellow `avweight'
+	di as text "Fraction of observations with weight < 0.50:           " %7.4f in yellow `fraclow'
+	di as text "Fraction of observations with weight equal to zero:    " %7.4f in yellow `fraczero'
 	di " " 
 	
-	scalar drop e_N e_r2_p
 	matrix drop _all
-
+	
 end
+
+
+
+/////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////
+// Mata program
+/////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////
+
+mata:
+	mata clear
+	void _vce_cluster(real scalar B) {
+		st_view(y=., ., st_local("depv"), st_local("touse"))
+		st_view(X=., ., tokens(st_local("indepv")), st_local("touse"))
+		st_view(cvar=., ., tokens(st_local("cvar")), st_local("touse"))
+		st_view(cvarn=., ., tokens(st_local("cvarn")), st_local("touse"))
+		bmm=st_matrix("bmm")
+		bs=st_matrix("bs")
+		s=st_numscalar("scale")		
+		kmm=st_numscalar("kmm")		
+		ks=st_numscalar("ks")
+		X=(X,J(rows(X),1,1))
+
+		n1=nonmissing(y)
+		n2=nonmissing(rowsum(X, 1))
+		if (n1<n2) n=n1 
+		else n=n2
+		k=cols(X)
+		
+		// Create residual vectors for MM and S estimator:
+		rmm=y-X*bmm
+		rs=y-X*bs
+		zmm=rmm:/s
+		zs=rs:/s
+		
+		// Compute the constant needed for minimization of the M-scale (K=b in eq 2.4 in Salibian-Barrera and Zamar (2002)):
+		K=.5*mm_biweight_rho(ks,ks)
+		
+		// Compute weights w and v to be bootstrapped (no need to recalculate each bootstrap):
+		// Note: w should be scaled by standardized residual, not raw residual in eq 3.1:
+		w=mm_biweight_psi(zmm, kmm):/rmm
+		v=(s/(n*K))*((mm_biweight_rho(zs, ks)):/rs)
+		
+		// Compute correction factors per eq 3.6-3.8 in Salibian-Barrera and Zamar (2002):
+		phi1=mm_biweight_phi(zmm, kmm)
+		M=s*invsym(cross(X,phi1,X))*cross(X,w,X)
+		psi0=mm_biweight_psi(zs, ks)
+		aa=(psi0:*rs)/s
+		a=(1/(n*K))*colsum(aa)
+		d=(1/a)*invsym(cross(X,phi1,X))*cross(X,phi1,rmm)
+
+		// Cluster setup:
+        info=panelsetup(cvar, 1)
+        nc=rows(info)
+
+		// Obtain the relevant information from the clusters and store in lower-dimensional matrices:
+		nb=0
+		XXg=J(0,k,0)
+		Xyg=J(0,1,0)
+		vrg=J(0,1,0)
+		for(i=1; i<=nc; i++) {
+			// Cluster-level data needed for coefficients:
+			xg=panelsubmatrix(X,i,info)
+			ng=nonmissing(rowsum(xg, 1))
+			wg=panelsubmatrix(w,i,info)
+			XXg=(XXg \ cross(xg,wg,xg))
+			nb=nb+ng
+			yg=panelsubmatrix(y,i,info)
+			Xyg=(Xyg \ cross(xg,wg,yg))
+			// Cluster-level data needed for scale estimate:
+			vg=panelsubmatrix(v,i,info)
+			rsg=panelsubmatrix(rs,i,info)
+			vrg=(vrg \ colsum(vg:*rsg))
+		}
+		
+		// Perform bootstrapping by drawing the lower-dimensional matrices for calculation of coefficients and scale:
+		beta=J(0,k,0)
+		bresults=J(0,k,.)
+		for(b=1; b<=B; b++) {
+			XXb=J(k,k,0)
+			Xyb=J(k,1,0)
+			vrb=J(1,1,0)
+			submatx=J(k,k,0)
+			submaty=J(n,1,0)
+			bsample_c=mm_sample(nc,nc)
+			for(i=1; i<=nc; i++) {
+				cluster=bsample_c[i]
+				pos0=1+k*(cluster-1)
+				pos=(pos0::pos0+k-1)
+				submatx=XXg[pos,.]
+				XXb=XXb+submatx
+				submaty=Xyg[pos,.]
+				Xyb=Xyb+submaty
+				vrb=vrb+vrg[i]
+			}
+			betabmm=cross(invsym(XXb),Xyb)
+			sb=vrb
+			
+			// Apply correction and store results:
+			bbcenter=(M*(betabmm-bmm)+d*(sb-s))'
+			bresults=(bresults \ bbcenter)
+		}
+				
+        Vclust=variance(bresults)
+		st_matrix("Vclust",Vclust)
+		st_numscalar("nc",nc)
+	}
+	
+	void _vce_cluster_inter(real scalar B) {
+		st_view(y=., ., st_local("depv"), st_local("touse"))
+		st_view(X=., ., tokens(st_local("indepv")), st_local("touse"))
+		st_view(cvar=., ., tokens(st_local("cvar")), st_local("touse"))
+		st_view(cvarn=., ., tokens(st_local("cvarn")), st_local("touse"))
+		bmm=st_matrix("bmm")
+		bs=st_matrix("bs")
+		s=st_numscalar("scale")		
+		kmm=st_numscalar("kmm")		
+		ks=st_numscalar("ks")
+		X=(X,J(rows(X),1,1))
+
+		n1=nonmissing(y)
+		n2=nonmissing(rowsum(X, 1))
+		if (n1<n2) n=n1 
+		else n=n2
+		k=cols(X)
+
+		// Create residual vectors for MM and S estimator:
+		rmm=y-X*bmm
+		rs=y-X*bs
+		zmm=rmm:/s
+		zs=rs:/s
+		
+		// Compute the constant needed for minimization of the M-scale (K=b in eq 2.4 in Salibian-Barrera and Zamar (2002)):
+		K=.5*mm_biweight_rho(ks,ks)
+		
+		// Compute weights w and v to be bootstrapped (no need to recalculate each bootstrap):
+		// Per eq 3.1 in Salibian-Barrera and Zamar (2002):
+		w=mm_biweight_psi(zmm, kmm):/rmm
+		v=(s/(n*K))*((mm_biweight_rho(zs, ks)):/rs)
+		
+		// Compute correction factors per eq 3.6-3.8 in Salibian-Barrera and Zamar (2002):
+		phi1=mm_biweight_phi(zmm, kmm)
+		M=s*invsym(cross(X,phi1,X))*cross(X,w,X)
+		psi0=mm_biweight_psi(zs, ks)
+		aa=(psi0:*rs)/s
+		a=(1/(n*K))*colsum(aa)
+		d=(1/a)*invsym(cross(X,phi1,X))*cross(X,phi1,rmm)
+
+		// Cluster setup:
+        info=panelsetup(cvar, 1)
+        nc=rows(info)
+		mm_panels(cvar, Cinfo=.)
+				
+		bresults=J(0,k,.)
+		for(b=1; b<=B; b++) {
+			// Create permutation vector and draw the relevant variables for bootstrap sample:
+			bsample_n=mm_sample(nc,.,Cinfo)
+				
+			yb=y[bsample_n]
+			Xb=X[bsample_n,.]		
+			wb=w[bsample_n]
+			vb=v[bsample_n]
+			rbs=rs[bsample_n]
+			
+			// Compute bootstrap-sample betas and scale:
+			betabmm=invsym(cross(Xb,wb,Xb))*cross(Xb,wb,yb)
+			sb=colsum(vb:*rbs)
+
+			// Apply correction and store results:
+			bbcenter=(M*(betabmm-bmm)+d*(sb-s))'
+			bresults=(bresults \ bbcenter)
+		}
+				
+        Vclust=variance(bresults)
+		st_matrix("Vclust",Vclust)
+		st_numscalar("nc",nc)
+	}
+
+	void _vce_nocl(real scalar B) {
+		st_view(y=., ., st_local("depv"), st_local("touse"))
+		st_view(X=., ., tokens(st_local("indepv")), st_local("touse"))
+		bmm=st_matrix("bmm")
+		bs=st_matrix("bs")
+		s=st_numscalar("scale")		
+		kmm=st_numscalar("kmm")		
+		ks=st_numscalar("ks")
+		X=(X,J(rows(X),1,1))
+
+		n1=nonmissing(y)
+		n2=nonmissing(rowsum(X, 1))
+		if (n1<n2) n=n1 
+		else n=n2
+		k=cols(X)
+
+		// Create residual vectors for MM and S estimator:
+		rmm=y-X*bmm
+		rs=y-X*bs
+		zmm=rmm:/s
+		zs=rs:/s
+		
+		// Compute the constant needed for minimization of the M-scale (K=b in eq 2.4 in Salibian-Barrera and Zamar (2002)):
+		K=.5*mm_biweight_rho(ks,ks)
+		
+		// Compute weights w and v to be bootstrapped (no need to recalculate each bootstrap):
+		// Per eq 3.1 in Salibian-Barrera and Zamar (2002):
+		w=mm_biweight_psi(zmm, kmm):/rmm
+		v=(s/(n*K))*((mm_biweight_rho(zs, ks)):/rs)
+		
+		// Compute correction factors per eq 3.6-3.8 in Salibian-Barrera and Zamar (2002):
+		phi1=mm_biweight_phi(zmm, kmm)
+		M=s*invsym(cross(X,phi1,X))*cross(X,w,X)
+		psi0=mm_biweight_psi(zs, ks)
+		aa=(psi0:*rs)/s
+		a=(1/(n*K))*colsum(aa)
+		d=(1/a)*invsym(cross(X,phi1,X))*cross(X,phi1,rmm)
+
+		bresults=J(0,k,.)
+		for(b=1; b<=B; b++) {
+			// Create permutation vector and draw the relevant variables for bootstrap sample:
+			bsample_n=mm_sample(n,n)
+				
+			yb=y[bsample_n]
+			Xb=X[bsample_n,.]		
+			wb=w[bsample_n]
+			vb=v[bsample_n]
+			rbs=rs[bsample_n]
+			
+			// Compute bootstrap-sample betas and scale:
+			betabmm=invsym(cross(Xb,wb,Xb))*cross(Xb,wb,yb)
+			sb=colsum(vb:*rbs)
+
+			// Apply correction and store results:
+			bbcenter=(M*(betabmm-bmm)+d*(sb-s))'
+			bresults=(bresults \ bbcenter)
+		}
+				
+        Vnoclust=variance(bresults)
+		st_matrix("Vnoclust",Vnoclust)
+	}
+	
+end
+	
