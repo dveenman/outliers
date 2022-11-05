@@ -47,7 +47,7 @@ This program can be used to estimate a robust regression with cluster-robust sta
 **Output**: 
 The program produces standard regression output, with the number of observations used in the estimation, the degrees of freedom used to compute the critical values of the *t*-statistics (G-1, where G is the number of clusters in the dimension with lowest number of clusters), as well as the number of clusters in each dimension. Below the regression output, the program also lists information on the average weights assigned to observations in the final weighted least squares estimation, as well as the fraction of observations with weights below 0.5 and weights equal to zero. Illustration of output:
 
-![image](https://user-images.githubusercontent.com/65561067/124246947-b0b52f80-db21-11eb-91cc-a3e8b66dd9bc.png)
+![image](https://user-images.githubusercontent.com/65561067/200134167-eba04f0c-7225-4158-a71b-b24be65ca360.png)
 
 **Examples**: 
 ```
@@ -75,7 +75,7 @@ This program uses fast bootstrapping procedures to produce bootstrapped standard
 **Output**:
 The program produces standard regression output, with the number of observations used in the estimation and the number of clusters in each dimension. The bootstrapped standard errors are adjusted for a finite-sample correction similar to **robcluster2** and p-values rely on critical values from a t-distribution with G-1 degrees of freedom following the recommendations of [Cameron and Miller (2015)](http://cameron.econ.ucdavis.edu/research/Cameron_Miller_JHR_2015_February.pdf). Below the regression output, the program also lists information on the average weights assigned to observations in the final weighted least squares estimation, as well as the fraction of observations with weights below 0.5 and weights equal to zero. Illustration of output:
 
-![image](https://user-images.githubusercontent.com/65561067/148389982-210ac155-de26-4110-af78-5803ee67f76e.png)
+![image](https://user-images.githubusercontent.com/65561067/200134252-efca1c1f-5c2b-4824-afc9-0e028ca05c0e.png)
 
 **Examples**:
 ```
