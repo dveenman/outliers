@@ -63,11 +63,14 @@ robcluster2 y x x2 x3 x4 x5 x6, eff(95) cluster(firm year)
 robcluster2 y x x2 x3 x4 x5 x6, eff(70) cluster(firm year) m
 robcluster2 y x x2 x3 x4 x5 x6, eff(95) cluster(firm year) m biweight
 robcluster2 y x x2 x3 x4 x5 x6, cluster(firm year) s
-robcluster2 y x x2 x3 x4 x5 x6, cluster(firm year) median
 
-roboot y x x2 x3 x4 x5 x6, eff(95) cluster(firm year) nboot(400) 
-roboot y x x2 x3 x4 x5 x6, eff(70) cluster(firm) nboot(400) m
-roboot y x x2 x3 x4 x5 x6, eff(70) nboot(400) m biweight
-roboot y x x2 x3 x4 x5 x6, cluster(firm) nboot(400) s 
-roboot y x x2 x3 x4 x5 x6, cluster(year) nboot(400) median
+roboot y x x2 x3 x4 x5 x6, eff(95) cluster(firm year) nboot(1000) 
+roboot y x x2 x3 x4 x5 x6, eff(70) cluster(firm) nboot(1000)
+roboot y x x2 x3 x4 x5 x6, eff(70) nboot(1000) seed(1234)
+roboot y x x2 x3 x4 x5 x6, eff(70) nboot(1000) seed(1234)
 
+timer clear
+timer on 1
+roboot y x x2 x3 x4 x5 x6, eff(95) cluster(firm) nboot(9999) 
+timer off 1
+timer list
