@@ -1,7 +1,7 @@
-*! version 2.0.0 20221105 David Veenman
+*! version 2.0.0 20221106 David Veenman
 
 /* 
-20221105: 2.0.0     Complete new version based on fast bootstrap for MM estimators following Salibian-Barrera and Zamar (2002) [SZ2002]
+20221106: 2.0.0     Complete new version based on fast bootstrap for MM estimators following Salibian-Barrera and Zamar (2002) [SZ2002]
                     Option for cluster-bootstrap up to two dimensions by adjusting bootstrap in SZ2002 to pairs-cluster bootstrap
                     Including computationally efficient procedure from MacKinnon (2022) by drawing lower-dimensional matrices in cluster bootstrap
 20220106: 1.1.1     Added finite-sample correction and significance testing based on t(G-1)
@@ -133,10 +133,10 @@ program define roboot, eclass sortpreserve
 	if (`ncdim'>=1){	
 		/////////////////////////////////////////////////////////////////////////////////////////
 		/////////////////////////////////////////////////////////////////////////////////////////
-		// Step 1: Getting cluster-robust VCE for first dimension  
+		// Step 1: Getting cluster-robust SEs for first dimension  
 		/////////////////////////////////////////////////////////////////////////////////////////
 		/////////////////////////////////////////////////////////////////////////////////////////
-		di as text "STEP 2: Obtaining cluster-robust variance estimators..."
+		di as text "STEP 2: Obtaining cluster-robust bootstrapped standard errors..."
 		if (`ncdim'==2){
 			di "STEP 2A: First clustering dimension..."
 		}
@@ -159,7 +159,7 @@ program define roboot, eclass sortpreserve
 	if (`ncdim'==2){		
 		/////////////////////////////////////////////////////////////////////////////////////////
 		/////////////////////////////////////////////////////////////////////////////////////////
-		// Step 2: Getting cluster-robust VCE for second dimension 
+		// Step 2: Getting cluster-robust SEs for second dimension 
 		/////////////////////////////////////////////////////////////////////////////////////////
 		/////////////////////////////////////////////////////////////////////////////////////////
 		di "STEP 2B: Second clustering dimension..."
@@ -180,7 +180,7 @@ program define roboot, eclass sortpreserve
 			
 		/////////////////////////////////////////////////////////////////////////////////////////
 		/////////////////////////////////////////////////////////////////////////////////////////
-		// Step 3: Getting cluster-robust VCE for second dimension 
+		// Step 3: Getting cluster-robust SEs for second dimension 
 		/////////////////////////////////////////////////////////////////////////////////////////
 		/////////////////////////////////////////////////////////////////////////////////////////
 		di "STEP 2C: Intersection of the two clustering dimensions..."
