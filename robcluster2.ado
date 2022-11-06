@@ -1,7 +1,7 @@
-*! version 1.2.0 20221030 David Veenman
+*! version 2.0.0 20221106 David Veenman
 
 /* 
-20221104: 1.2.0	Major update by replacing separate estimations with cluster-robust variance matrices for more stable estimates and computationally efficient estimation 
+20221106: 2.0.0	Major update by replacing separate estimations with cluster-robust variance matrices for more stable estimates and computationally efficient estimation 
 				Added option to store weights in new variable
 				Scalars with weight info now stored in ereturn
 20211228: 1.1.1	Allow for factor variables 
@@ -284,10 +284,6 @@ program define robcluster2, eclass sortpreserve
 	}
 	ereturn scalar df_r=e_df_r
 
-	ereturn scalar avweight=`avweight'
-	ereturn scalar fraclow=`fraclow'
-	ereturn scalar fraczero=`fraczero'
-
 	di " "
 	di "---------------------------------------------------------"
 	if("`m'"=="" & "`s'"=="" & "`median'"==""){
@@ -303,7 +299,7 @@ program define robcluster2, eclass sortpreserve
 		di in green "S-estimator with 2D clustered SEs" 
 	}
 	if("`median'"!=""){
-		di in green "Median regression with bootstrapped 2D clustered SEs" 
+		di in green "Median regression with 2D clustered SEs" 
 	}
 	di " "
 	di in green "Number of clusters (`clusterdim1') = " _column(31) %5.0f in yellow `nclusterdim1' ///
@@ -317,6 +313,9 @@ program define robcluster2, eclass sortpreserve
 	di " " 
 
 	if "`median'"=="" {
+		ereturn scalar avweight=`avweight'
+		ereturn scalar fraclow=`fraclow'
+		ereturn scalar fraczero=`fraczero'
 		di as text "Average weight assigned to observations:               " %7.4f in yellow `avweight'
 		di as text "Fraction of observations with weight < 0.50:           " %7.4f in yellow `fraclow'
 		di as text "Fraction of observations with weight equal to zero:    " %7.4f in yellow `fraczero'
