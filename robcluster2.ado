@@ -1,16 +1,17 @@
-*! version 2.0.0 20221106 David Veenman
+*! version 2.0.1 20221109 David Veenman
 
 /* 
-20221106: 2.0.0	Major update by replacing separate estimations with cluster-robust variance matrices for more stable estimates and computationally efficient estimation 
-				Added option to store weights in new variable
-				Scalars with weight info now stored in ereturn
-20211228: 1.1.1	Allow for factor variables 
-				Added S options to be passed to MM estimator
-20211011: 1.1.0 Added tolerance option
-				Improved small-sample correction for 2way variance matrix to be consistent with reghdfe
-				Added option nohaus to s and mm estimator for faster execution
-				Small fix in scalar drop at bottom; previous "drop _all" caused all scalars to be dropped outside the program too
-20210701: 1.0.0	First version
+20221109: 2.0.1     Some housekeeping: changed scalars to locals
+20221106: 2.0.0     Major update by replacing separate estimations with cluster-robust variance matrices for more stable estimates and computationally efficient estimation 
+                    Added option to store weights in new variable
+                    Scalars with weight info now stored in ereturn
+20211228: 1.1.1     Allow for factor variables 
+                    Added S options to be passed to MM estimator
+20211011: 1.1.0     Added tolerance option
+                    Improved small-sample correction for 2way variance matrix to be consistent with reghdfe
+                    Added option nohaus to s and mm estimator for faster execution
+                    Small fix in scalar drop at bottom; previous "drop _all" caused all scalars to be dropped outside the program too
+20210701: 1.0.0     First version
 */
 
 program define robcluster2, eclass sortpreserve
@@ -122,8 +123,8 @@ program define robcluster2, eclass sortpreserve
 			capture noisily `est0' `est' `varlist' if `touse', `options' nose
 		}
 		
-		scalar e_N=e(N)
-		scalar e_r2_p=e(r2_p)
+		local e_N=e(N)
+		local e_r2_p=e(r2_p)
 		predict double `res', res
 		predict double `w', weights
 		scalar scale=e(scale)
@@ -176,8 +177,8 @@ program define robcluster2, eclass sortpreserve
 		local res "`res'"	
 		local cvar "`clusterid'"	
 		mata: _vce_cluster()
-		local nclusterdim1=nc
-		scalar e_df_r1=nc-1
+		local nclusterdim1=mata_nclusters
+		local e_df_r1=mata_nclusters-1
 		matrix colnames Vclust=`indepvnames'
 		matrix rownames Vclust=`indepvnames'	
 		matrix V1=Vclust
@@ -193,8 +194,8 @@ program define robcluster2, eclass sortpreserve
 		sort `clusterid' 
 		local cvar "`clusterid'"	
 		mata: _vce_cluster()
-		local nclusterdim2=nc
-		scalar e_df_r2=nc-1
+		local nclusterdim2=mata_nclusters
+		local e_df_r2=mata_nclusters-1
 		matrix colnames Vclust=`indepvnames'
 		matrix rownames Vclust=`indepvnames'	
 		matrix V2=Vclust
@@ -222,16 +223,16 @@ program define robcluster2, eclass sortpreserve
 		/////////////////////////////////////////////////////////////////////////////////////////
 		/////////////////////////////////////////////////////////////////////////////////////////
 		qui `est0' `est' `varlist' if `touse', `options' cluster(`clusterdim1')
-		scalar e_N=e(N)
-		scalar e_r2_p=e(r2_p)
+		local e_N=e(N)
+		local e_r2_p=e(r2_p)
 		matrix beta=e(b)
 		matrix V1=e(V)/((e(N_clust)/(e(N_clust)-1))*((e(N)-1)/(e(N)-e(rank))))
 		local nclusterdim1=e(N_clust)
-		scalar e_df_r1=e(N_clust)-1
+		local e_df_r1=e(N_clust)-1
 		qui `est0' `est' `varlist' if `touse', `options' cluster(`clusterdim2')
 		matrix V2=e(V)/((e(N_clust)/(e(N_clust)-1))*((e(N)-1)/(e(N)-e(rank))))
 		local nclusterdim2=e(N_clust)
-		scalar e_df_r2=e(N_clust)-1
+		local e_df_r2=e(N_clust)-1
 		qui `est0' `est' `varlist' if `touse', `options' cluster(`intersection')
 		matrix V3=e(V)/((e(N_clust)/(e(N_clust)-1))*((e(N)-1)/(e(N)-e(rank))))
 	}
@@ -244,23 +245,23 @@ program define robcluster2, eclass sortpreserve
 
 	matrix Vc=V1+V2-V3
 
-	local N=e_N
+	local N=`e_N'
 	if "`fvcheck'"=="true"{
 		local K=rowsof(Vc)-1
 	}
 	else{
 		local K=rowsof(Vc) 
 	}
-	scalar factor1=(`nclusterdim1'/(`nclusterdim1'-1))*((`N'-1)/(`N'-`K'))
-	scalar factor2=(`nclusterdim2'/(`nclusterdim2'-1))*((`N'-1)/(`N'-`K'))
+	local factor1=(`nclusterdim1'/(`nclusterdim1'-1))*((`N'-1)/(`N'-`K'))
+	local factor2=(`nclusterdim2'/(`nclusterdim2'-1))*((`N'-1)/(`N'-`K'))
 				
 	if `nclusterdim1'<`nclusterdim2'{
-		scalar factormin=factor1
+		local factormin=`factor1'
 	}
 	else{
-		scalar factormin=factor2
+		local factormin=`factor2'
 	}
-	matrix Vc=factormin*Vc
+	matrix Vc=`factormin'*Vc
 	
 	/////////////////////////////////////////////////////////////////////////////////////////
 	/////////////////////////////////////////////////////////////////////////////////////////
@@ -273,16 +274,16 @@ program define robcluster2, eclass sortpreserve
 	matrix `V'=Vc
 	
 	ereturn post `b' `V'
-	ereturn scalar N=e_N
-	ereturn scalar r2_p=e_r2_p
+	ereturn scalar N=`e_N'
+	ereturn scalar r2_p=`e_r2_p'
 	ereturn local depvar "`depv'"
-	if e_df_r1<e_df_r2{
-		scalar e_df_r=e_df_r1
+	if `e_df_r1'<`e_df_r2'{
+		local e_df_r=`e_df_r1'
 	}
 	else{
-	    scalar e_df_r=e_df_r2
+	    local e_df_r=`e_df_r2'
 	}
-	ereturn scalar df_r=e_df_r
+	ereturn scalar df_r=`e_df_r'
 
 	di " "
 	di "---------------------------------------------------------"
@@ -322,7 +323,6 @@ program define robcluster2, eclass sortpreserve
 	}
 	di " " 
 
-	scalar drop e_N e_df_r1 e_r2_p e_df_r2 e_df_r factor1 factor2 factormin
 	matrix drop _all
 end
 
@@ -382,7 +382,7 @@ mata:
         Vclust=makesymmetric(s^2*XphiXinv*M*XphiXinv)
 		
 		st_matrix("Vclust",Vclust)
-		st_numscalar("nc",nc)
+		st_numscalar("mata_nclusters",nc)
 	}
 end
 	

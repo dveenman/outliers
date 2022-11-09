@@ -1,6 +1,7 @@
-*! version 2.0.0 20221106 David Veenman
+*! version 2.0.1 20221109 David Veenman
 
 /* 
+20221109: 2.0.1     Some housekeeping: changed scalars to locals
 20221106: 2.0.0     Complete new version based on fast bootstrap for MM estimators following Salibian-Barrera and Zamar (2002) [SZ2002]
                     Option for cluster-bootstrap up to two dimensions by adjusting bootstrap in SZ2002 to pairs-cluster bootstrap
                     Including computationally efficient procedure from MacKinnon (2022) by drawing lower-dimensional matrices in cluster bootstrap
@@ -87,26 +88,25 @@ program define roboot, eclass sortpreserve
 		capture noisily `est0' `est' `varlist' if `touse', `options' nose
 	}
 
-	scalar e_N=e(N)
-	scalar e_r2_p=e(r2_p)
+	local e_N=e(N)
+	local e_r2_p=e(r2_p)
 	if (`ncdim'==0){
-		scalar e_df_r=e(df_r)
+		local e_df_r=e(df_r)
 	}
 	
 	if "`fvcheck'"=="true"{
-		scalar p=(e(df_m)+2)
+		local param=(e(df_m)+2)
 	}
 	else{
-		scalar p=(e(df_m)+1)
+		local param=(e(df_m)+1)
 	}
-	matrix bmm0=(e(b)[1,1..p])'
+	matrix bmm0=(e(b)[1,1..`param'])'
 	
-	matrix bmm=J(p,1,0)
-	local k=p
-	forvalues i=1(1)`k'{
+	matrix bmm=J(`param',1,0)
+	forvalues i=1(1)`param'{
 		matrix bmm[`i', 1]=bmm0[`i', 1]
 	}
-	matrix bs=(e(b)[1,(p+1)..(2*p)])'
+	matrix bs=(e(b)[1,(`param'+1)..(2*`param')])'
 	
 	scalar scale=e(scale)
 	scalar kmm=e(k)
@@ -148,8 +148,8 @@ program define roboot, eclass sortpreserve
 		local cvar "`clusterid'"	
 		local cvarn "`clusterid' _cvarn_temp"
 		mata: _vce_cluster(`nboot')
-		local nclusterdim1=nc
-		scalar e_df_r1=nc-1
+		local nclusterdim1=mata_nclusters
+		local e_df_r1=mata_nclusters-1
 		matrix colnames Vclust=`indepvnames'
 		matrix rownames Vclust=`indepvnames'	
 		matrix V1=Vclust
@@ -171,8 +171,8 @@ program define roboot, eclass sortpreserve
 		local cvar "`clusterid'"	
 		local cvarn "`clusterid' _cvarn_temp"
 		mata: _vce_cluster(`nboot')
-		local nclusterdim2=nc
-		scalar e_df_r2=nc-1
+		local nclusterdim2=mata_nclusters
+		local e_df_r2=mata_nclusters-1
 		matrix colnames Vclust=`indepvnames'
 		matrix rownames Vclust=`indepvnames'	
 		matrix V2=Vclust
@@ -206,7 +206,7 @@ program define roboot, eclass sortpreserve
 		matrix colnames Vc=`indepvnames'
 		matrix rownames Vc=`indepvnames'
 			
-		local N=e_N
+		local N=`e_N'
 		if "`fvcheck'"=="true"{
 			local K=rowsof(Vc)-1
 		}
@@ -214,21 +214,21 @@ program define roboot, eclass sortpreserve
 			local K=rowsof(Vc) 
 		}
 
-		scalar factor1=(`nclusterdim1'/(`nclusterdim1'-1))*((`N'-1)/(`N'-`K'))
-		scalar factor2=(`nclusterdim2'/(`nclusterdim2'-1))*((`N'-1)/(`N'-`K'))
+		local factor1=(`nclusterdim1'/(`nclusterdim1'-1))*((`N'-1)/(`N'-`K'))
+		local factor2=(`nclusterdim2'/(`nclusterdim2'-1))*((`N'-1)/(`N'-`K'))
 
 		if `nclusterdim1'<`nclusterdim2'{
-			scalar factormin=factor1
+			local factormin=`factor1'
 		}
 		else{
-			scalar factormin=factor2
+			local factormin=`factor2'
 		}
-		matrix Vc=factormin*Vc			
-		if e_df_r1<e_df_r2{
-			scalar e_df_r=e_df_r1
+		matrix Vc=`factormin'*Vc			
+		if `e_df_r1'<`e_df_r2'{
+			local e_df_r=`e_df_r1'
 		}
 		else{
-			scalar e_df_r=e_df_r2
+			local e_df_r=`e_df_r2'
 		}
 	}
 	else{
@@ -238,7 +238,7 @@ program define roboot, eclass sortpreserve
 			matrix colnames Vc=`indepvnames'
 			matrix rownames Vc=`indepvnames'
 				
-			local N=e_N
+			local N=`e_N'
 			if "`fvcheck'"=="true"{
 				local K=rowsof(Vc)-1
 			}
@@ -246,9 +246,9 @@ program define roboot, eclass sortpreserve
 				local K=rowsof(Vc) 
 			}
 
-			scalar factor=(`nclusterdim1'/(`nclusterdim1'-1))*((`N'-1)/(`N'-`K'))
-			matrix Vc=factor*Vc
-			scalar e_df_r=e_df_r1			
+			local factor=(`nclusterdim1'/(`nclusterdim1'-1))*((`N'-1)/(`N'-`K'))
+			matrix Vc=`factor'*Vc
+			local e_df_r=`e_df_r1'			
 		}		
 		if (`ncdim'==0) {
 			di "STEP 2: Estimating bootstrapped standard errors..."
@@ -275,10 +275,10 @@ program define roboot, eclass sortpreserve
 	
 	ereturn post `b' `V'
 	
-	ereturn scalar N=e_N
-	ereturn scalar r2_p=e_r2_p
+	ereturn scalar N=`e_N'
+	ereturn scalar r2_p=`e_r2_p'
 	ereturn local depvar "`depv'"
-	ereturn scalar df_r=e_df_r
+	ereturn scalar df_r=`e_df_r'
 		
 	di " "
 	di " "
@@ -472,7 +472,7 @@ mata:
 				
         Vclust=variance(bresults)
 		st_matrix("Vclust",Vclust)
-		st_numscalar("nc",nc)
+		st_numscalar("mata_nclusters",nc)
 	}
 	
 	void _vce_cluster_inter(real scalar B) {
@@ -542,7 +542,6 @@ mata:
 				
         Vclust=variance(bresults)
 		st_matrix("Vclust",Vclust)
-		st_numscalar("nc",nc)
 	}
 
 	void _vce_nocl(real scalar B) {
