@@ -1,6 +1,7 @@
-*! version 2.0.1 20221109 David Veenman
+*! version 2.0.2 20221118 David Veenman
 
 /* 
+20221118: 2.0.2     Fixed small inconsistency with S-estimator
 20221109: 2.0.1     Some housekeeping: changed scalars to locals
 20221106: 2.0.0     Major update by replacing separate estimations with cluster-robust variance matrices for more stable estimates and computationally efficient estimation 
                     Added option to store weights in new variable
@@ -67,7 +68,7 @@ program define robcluster2, eclass sortpreserve
 	}
     local est0="robreg"
 	
-	if ("`est'"=="mm"){
+	if ("`est'"=="mm" | "`est'"=="s"){
 		local biweight="biweight"
 	}
 	
@@ -143,7 +144,7 @@ program define robcluster2, eclass sortpreserve
 				}
 				local j=`j'+1
 			}
-		}
+		}		
 		else{
 			matrix beta=e(b)
 		}
@@ -242,7 +243,6 @@ program define robcluster2, eclass sortpreserve
 	// Step 4: Combining VCEs and applying small sample correction: 
 	/////////////////////////////////////////////////////////////////////////////////////////
 	/////////////////////////////////////////////////////////////////////////////////////////
-
 	matrix Vc=V1+V2-V3
 
 	local N=`e_N'
@@ -341,11 +341,11 @@ mata:
 		st_view(r=., ., tokens(st_local("res")), st_local("touse"))
 		st_view(cvar=., ., tokens(st_local("cvar")), st_local("touse"))
 		st_view(cvarn=., ., tokens(st_local("cvarn")), st_local("touse"))
-		s=st_numscalar("scale")		
+		scale=st_numscalar("scale")		
 		krob=st_numscalar("krob")
 		bi=st_local("biweight")
 		X=(X,J(rows(X),1,1))
-
+		
 		n1=nonmissing(y)
 		n2=nonmissing(rowsum(X, 1))
 		if (n1<n2) n=n1 
@@ -353,7 +353,7 @@ mata:
 		k=cols(X)
 
 		XWXinv=invsym(quadcross(X,w,X))
-		z=r:/s
+		z=r:/scale
 		if (bi=="biweight"){
 			psi=mm_biweight_psi(z,krob)
 			phi=mm_biweight_phi(z,krob)			
@@ -364,10 +364,6 @@ mata:
 		}
 				
 		XphiXinv=invsym(quadcross(X,phi,X))
-		m2=X:*psi
-		meat2=quadcross(m2,m2)
-		vw2=(n/(n-k))*s^2*XphiXinv*meat2*XphiXinv
-		
         info=panelsetup(cvar, 1)
         nc=rows(info)
         M=J(k,k,0)
@@ -379,7 +375,7 @@ mata:
 			M=M+xi'*(psii*psii')*xi
         }
 		
-        Vclust=makesymmetric(s^2*XphiXinv*M*XphiXinv)
+        Vclust=makesymmetric(scale^2*XphiXinv*M*XphiXinv)
 		
 		st_matrix("Vclust",Vclust)
 		st_numscalar("mata_nclusters",nc)
