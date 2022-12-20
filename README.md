@@ -75,7 +75,7 @@ This program uses fast bootstrapping procedures to produce bootstrapped standard
 **Output**:
 The program produces standard regression output, with the number of observations used in the estimation and the number of clusters in each dimension. The bootstrapped standard errors are adjusted for a finite-sample correction similar to **robcluster2** and p-values rely on critical values from a t-distribution with G-1 degrees of freedom following the recommendations of [Cameron and Miller (2015)](http://cameron.econ.ucdavis.edu/research/Cameron_Miller_JHR_2015_February.pdf). Below the regression output, the program also lists information on the average weights assigned to observations in the final weighted least squares estimation, as well as the fraction of observations with weights below 0.5 and weights equal to zero. Illustration of output:
 
-![image](https://user-images.githubusercontent.com/65561067/200160575-697e458b-ddc4-4d89-9b30-e10b6999704a.png)
+![image](https://user-images.githubusercontent.com/65561067/208672516-058a27e9-48e8-408f-b6b3-179089364849.png)
 
 **Examples**:
 ```
