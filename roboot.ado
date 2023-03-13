@@ -1,8 +1,9 @@
-*! version 2.0.2 20221220 David Veenman
+*! version 2.0.3 20230313 David Veenman
 
 /* 
-20221220: 2.0.2	  Efficiency improvements using pointers for cluster-level matrices
-			  Added bootstrap counter
+20230313: 2.0.3     Minor update
+20221220: 2.0.2     Efficiency improvements using pointers for cluster-level matrices
+                    Added bootstrap counter
 20221109: 2.0.1     Some housekeeping: changed scalars to locals
 20221106: 2.0.0     Complete new version based on fast bootstrap for MM estimators following Salibian-Barrera and Zamar (2002) [SZ2002]
                     Option for cluster-bootstrap up to two dimensions by adjusting bootstrap in SZ2002 to pairs-cluster bootstrap
@@ -205,7 +206,8 @@ program define roboot, eclass sortpreserve
         local cvarn "`clusterid' _cvarn_temp"
         qui sum `clusterid'
         if (r(N)==r(max)){
-            mata: _vce_nocl(`nboot')            
+            mata: _vce_nocl(`nboot')      
+			matrix Vclust=Vnoclust
         }
         else{
             mata: _vce_cluster_inter(`nboot')
