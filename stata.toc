@@ -1,0 +1,8 @@
+v 3
+d Joachim Gassen - Humboldt University Berlin
+d David Veenman - University of Amsterdam 
+p robcluster2 ROBCLUSTER2 - Program to compute twoway cluster-robust standard errors for a robust regression estimator
+p roboot ROBOOT - program to produce bootstrapped standard errors for MM-estimators using the fast bootstrap procedure described by Salibian-Barrera and Zamar (2002)
+p robfmb ROBFMB - program to run Fama-Macbeth type robust regressions
+p robalance ROBALANCE - program that produces a table of output in which input variables are compared between the full sample and the reweighted sample of observations, based on the weights stored from a previous robust regression estimator
+
