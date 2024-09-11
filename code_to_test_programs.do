@@ -1,5 +1,5 @@
 /*
-This code can be used to test whether the programs cluster2mm and bootmm function properly
+This code can be used to test the robcluster2 and roboot programs
 The dataset is simulated to mimic a panel dataset with 100 firms and 50 years and a dependence 
 structure in x and the error term across both dimensions similar to Gow, Ormazabal, and Taylor (2010)
 */
@@ -15,7 +15,14 @@ gen n=_n
 gen firm=ceil(n/`years')
 gen year=n-(firm-1)*`years'
 
-* Induce dependence structure:
+// Create third random clustering dimension:
+gen random=rnormal()
+sort random
+gen dimension3=ceil(_n/`firms')
+sort firm year
+drop random
+
+// Induce dependence structure:
 local rho=0.8
 local ccor=0.5
 local sigma_x=sqrt(1)
@@ -44,7 +51,7 @@ replace ef=`rho'*ef[_n-1]+ve if year>=2
 gen x=xt+xf
 gen e=et+ef
 
-* Induce vertical outliers:
+// Induce vertical outliers:
 gen double r=rnormal()
 sort r
 replace e=e*3 if _n<=(`obs'/10)
@@ -59,18 +66,44 @@ gen x4=rnormal()
 gen x5=rnormal()
 gen x6=rnormal()
 
-robcluster2 y x x2 x3 x4 x5 x6, eff(95) cluster(firm year)
-robcluster2 y x x2 x3 x4 x5 x6, eff(70) cluster(firm year) m
-robcluster2 y x x2 x3 x4 x5 x6, eff(95) cluster(firm year) m biweight
-robcluster2 y x x2 x3 x4 x5 x6, cluster(firm year) s
 
+///////////////////////////////////////////////////////////////////////////////
+// ROBCLUSTER2
+///////////////////////////////////////////////////////////////////////////////
+
+// MM-estimation with SE clustered by firm and year:
+robcluster2 mm y x x2 x3 x4 x5 x6, eff(95) cluster(firm year)
+// M-estimation with SE clustered by firm and year:
+robcluster2 m y x x2 x3 x4 x5 x6, eff(70) cluster(firm year)
+// M-estimation with biweight objective function and SE clustered by firm and year:
+robcluster2 m y x x2 x3 x4 x5 x6, eff(95) cluster(firm year) biweight
+// S-estimation with SE clustered by firm and year:
+robcluster2 s y x x2 x3 x4 x5 x6, cluster(firm year)
+// MM-estimation with year dummies and SE clustered by firm and year:
+robcluster2 mm y i.year x x2 x3 x4 x5 x6, eff(95) cluster(firm year) m(i.year)
+// MM-estimation with 3-way SE clustering:
+robcluster2 mm y x x2 x3 x4 x5 x6, eff(95) cluster(firm year dimension3)
+
+
+///////////////////////////////////////////////////////////////////////////////
+// ROBOOT
+///////////////////////////////////////////////////////////////////////////////
+
+// MM-estimation with SE clustered by firm and year:
 roboot y x x2 x3 x4 x5 x6, eff(95) cluster(firm year) nboot(1000) 
+// MM-estimation with SE clustered by firm:
 roboot y x x2 x3 x4 x5 x6, eff(70) cluster(firm) nboot(1000)
+// MM-estimation with seed set:
 roboot y x x2 x3 x4 x5 x6, eff(70) nboot(1000) seed(1234)
-roboot y x x2 x3 x4 x5 x6, eff(70) nboot(1000) seed(1234)
+// MM-estimation with year dummies and SE clustered by firm and year:
+roboot y i.year x x2 x3 x4 x5 x6, eff(95) cluster(firm year) nboot(1000) sopts(m(i.year))
 
+// Timing test: MM-estimation with SE clustered by firm and year, 9999 bootstrap replications:
 timer clear
 timer on 1
-roboot y x x2 x3 x4 x5 x6, eff(95) cluster(firm) nboot(9999) 
+roboot y x x2 x3 x4 x5 x6, eff(95) cluster(firm year) nboot(9999) 
 timer off 1
 timer list
+
+
+

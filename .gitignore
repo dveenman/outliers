@@ -6,3 +6,5 @@
 blog/config.csv
 .DS_Store
 oldversions
+blog
+stata.toc

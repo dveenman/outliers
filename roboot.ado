@@ -1,6 +1,7 @@
-*! version 2.0.3 20230313 David Veenman
+*! version 2.0.4 20240911 David Veenman
 
 /* 
+20240911: 2.0.4     Added Cameron/Gelbach/Miller (2011) adjustment from Gu and Yoo (2019, DOI: 10.1177/1536867X19893637)                    
 20230313: 2.0.3     Minor update
 20221220: 2.0.2     Efficiency improvements using pointers for cluster-level matrices
                     Added bootstrap counter
@@ -225,7 +226,16 @@ program define roboot, eclass sortpreserve
         matrix Vc=V1+V2-V3
         matrix colnames Vc=`indepvnames'
         matrix rownames Vc=`indepvnames'
-            
+
+		mata: _check_vce()
+		if (negative==1) {
+			matrix colnames Vcadj=`indepvnames'
+			matrix rownames Vcadj=`indepvnames'	
+			matrix Vc=Vcadj
+			di ""
+			di "Note: adjustment from Cameron, Gelbach, and Miller (2011) applied to non-positive semi-definite VCE"
+		}
+		
         local N=`e_N'
         if "`fvcheck'"=="true"{
             local K=rowsof(Vc)-1
@@ -281,7 +291,7 @@ program define roboot, eclass sortpreserve
         
     /////////////////////////////////////////////////////////////////////////////////////////
     /////////////////////////////////////////////////////////////////////////////////////////
-    // Step 5: Post resuls in e() and print results:
+    // Step 5: Post results in e() and print results:
     /////////////////////////////////////////////////////////////////////////////////////////
     /////////////////////////////////////////////////////////////////////////////////////////
     ereturn clear
@@ -694,6 +704,26 @@ mata:
             displayflush()                
         }    
     }
-    
+ 
+	void _check_vce() {
+		real scalar neg
+		real matrix diag, EVEC, eval
+		
+		neg=0
+		diag=diagonal(st_matrix("Vc"))
+		for (i=1; i<=rows(diag); i++) { 
+			if (diag[i]<=0) {
+				neg=1
+			}
+		}
+		st_numscalar("negative", neg)
+		if (neg==1) {
+			// Cameron, Gelbach, and Miller (2011) adjustment from Gu and Yoo (2019, DOI: 10.1177/1536867X19893637) 
+			symeigensystem(st_matrix("Vc"), EVEC = ., eval = .)
+			eval = eval :* (eval :> 0)
+			st_matrix("Vcadj", EVEC*diag(eval)*EVEC')
+		}
+	}
+ 
 end
     
