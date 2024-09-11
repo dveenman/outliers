@@ -83,7 +83,9 @@ robcluster2 s y x x2 x3 x4 x5 x6, cluster(firm year)
 robcluster2 mm y i.year x x2 x3 x4 x5 x6, eff(95) cluster(firm year) m(i.year)
 // MM-estimation with 3-way SE clustering:
 robcluster2 mm y x x2 x3 x4 x5 x6, eff(95) cluster(firm year dimension3)
-
+// Post-robreg estimation implementation:
+robreg mm y x x2 x3 x4 x5 x6, eff(95) cluster(firm)
+robcluster2, cluster(firm year)
 
 ///////////////////////////////////////////////////////////////////////////////
 // ROBOOT
