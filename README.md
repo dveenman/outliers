@@ -1,8 +1,8 @@
-# Programs for "Outliers and Robust Inference in Archival Accounting Research"
+# Programs for "Estimation Precision and Robust Inference in Archival Research"
 
 by Joachim Gassen and David Veenman
 
-This repository provides Stata programs for multiway standard error clustering of robust regression estimators. The repository accompanies our paper (https://ssrn.com/abstract=3880942).
+This repository provides Stata programs for multiway standard error clustering of robust regression estimators. The repository accompanies our paper (https://ssrn.com/abstract=4975569).
 
 
 ## Overview
